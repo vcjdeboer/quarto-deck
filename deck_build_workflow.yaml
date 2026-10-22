@@ -1,0 +1,70 @@
+id: 0dcee05f-3137-46a7-921b-f0b83b94fdce
+name: "@vcjdeboer/quarto-deck-build"
+description: Outline, render, check and export a Quarto reveal.js deck (one model per deck)
+version: 1
+inputs:
+  properties:
+    deck:
+      type: string
+      description: Name of the @vcjdeboer/quarto-deck/deck model
+    pdf:
+      type: boolean
+      default: true
+      description: Export the distribution PDF
+    pptx:
+      type: boolean
+      default: false
+      description: Export the image-based PowerPoint
+    force:
+      type: boolean
+      default: false
+      description: Render even when no input changed
+  required: ["deck"]
+jobs:
+  - name: build
+    description: Outline the source, render it, check every slide
+    steps:
+      - name: outline
+        task:
+          type: model_method
+          modelIdOrName: ${{ inputs.deck }}
+          methodName: outline
+      - name: render
+        dependsOn:
+          - step: outline
+            condition:
+              type: succeeded
+        task:
+          type: model_method
+          modelIdOrName: ${{ inputs.deck }}
+          methodName: render
+          inputs:
+            force: ${{ inputs.force }}
+      - name: check
+        dependsOn:
+          - step: render
+            condition:
+              type: succeeded
+        task:
+          type: model_method
+          modelIdOrName: ${{ inputs.deck }}
+          methodName: check
+  - name: export
+    description: Distribution PDF and (optionally) PowerPoint
+    dependsOn:
+      - job: build
+        condition:
+          type: succeeded
+    steps:
+      - name: pdf
+        guard: ${{ !inputs.pdf }}
+        task:
+          type: model_method
+          modelIdOrName: ${{ inputs.deck }}
+          methodName: export_pdf
+      - name: pptx
+        guard: ${{ !inputs.pptx }}
+        task:
+          type: model_method
+          modelIdOrName: ${{ inputs.deck }}
+          methodName: export_pptx
