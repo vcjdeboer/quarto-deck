@@ -79,6 +79,24 @@ Workflow `@vcjdeboer/quarto-deck-build`: outline → render → check → PDF
 - macOS for: PDF shrinking (Quartz filter), Keynote-based slide/layer export
 - ffmpeg for transparent layers
 
+## External programs
+
+The methods drive existing tools; each is started with an argument array (no
+shell), with a timeout where a run can hang:
+
+| program | used by | for |
+|---|---|---|
+| `quarto` | `render` | rendering the deck (your R/Python code runs) |
+| Chrome / Chromium | `check`, `export_pdf`, `export_pptx` | walking slides, screenshots, print to PDF |
+| `pdfinfo`, `pdftotext`, `pdftoppm` (poppler) | `source_*`, `figure_crop`, `pptx_layer` | page geometry, text, cropping |
+| `osascript` (macOS) | `export_pdf` shrink, `pptx_extract images=true`, `pptx_layer` | Quartz filter; Keynote export (script on stdin, paths escaped) |
+| `ffmpeg` | `pptx_layer transparent=true` | white knock-out |
+| `R` | `render` | recording `R --version` |
+
+Paths come from the model's global arguments and method inputs; methods write
+only inside the deck folder (`sourcesDir`, `assetsDir`, the rendered HTML/PDF/PPTX)
+unless you pass an explicit `out` path.
+
 ## Compared with @webframp/presentation
 
 webframp's extension builds reveal.js from Org or Markdown and deliberately

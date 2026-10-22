@@ -42,6 +42,7 @@ export async function launchChrome(
   scale = 1,
 ): Promise<ChromePage> {
   const profile = await Deno.makeTempDir({ prefix: "quarto-deck-chrome-" });
+  // swamp-quality-ignore deno-command: headless Chrome is the renderer under test; fixed flags, argv array, no shell
   const proc = new Deno.Command(chrome, {
     args: [
       "--headless=new",
@@ -57,6 +58,16 @@ export async function launchChrome(
     stderr: "null",
   }).spawn();
 
+  // On any failure before the page is handed out, stop Chrome and drop its profile.
+  const abort = async (msg: string): Promise<never> => {
+    try {
+      proc.kill();
+    } catch { /* already exited */ }
+    await proc.status.catch(() => {});
+    await Deno.remove(profile, { recursive: true }).catch(() => {});
+    throw new Error(msg);
+  };
+
   // Chrome writes the chosen port to DevToolsActivePort in the profile.
   let port = "";
   for (let i = 0; i < 80 && !port; i++) {
@@ -67,10 +78,7 @@ export async function launchChrome(
       await sleep(125);
     }
   }
-  if (!port) {
-    proc.kill();
-    throw new Error(`Chrome did not start (${chrome})`);
-  }
+  if (!port) await abort(`Chrome did not start (${chrome})`);
   let targets: Array<{ type: string; webSocketDebuggerUrl: string }> = [];
   for (let i = 0; i < 40 && !targets.length; i++) {
     try {
@@ -80,13 +88,13 @@ export async function launchChrome(
       await sleep(125);
     }
   }
-  if (!targets.length) throw new Error("no Chrome page target");
+  if (!targets.length) await abort("no Chrome page target");
 
   const ws = new WebSocket(targets[0].webSocketDebuggerUrl);
   await new Promise<void>((res, rej) => {
     ws.onopen = () => res();
     ws.onerror = () => rej(new Error("DevTools websocket failed"));
-  });
+  }).catch((e) => abort(e.message));
   let nextId = 0;
   const pending = new Map<number, (m: Record<string, unknown>) => void>();
   const waiters: Array<{ method: string; fn: () => void }> = [];

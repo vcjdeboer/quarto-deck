@@ -245,6 +245,7 @@ async function osa(script: string, timeoutMs: number): Promise<string> {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeoutMs);
   try {
+    // swamp-quality-ignore deno-command: Keynote is only scriptable via osascript; the script is fed on stdin and paths are escaped
     const o = await new Deno.Command("osascript", {
       args: ["-"],
       stdin: "piped",
@@ -294,6 +295,7 @@ end tell
 end timeout`,
     timeoutMs,
   );
+  // swamp-quality-ignore deno-command: poppler pdftoppm rasterises the Keynote PDF; argv array, no shell
   const r = await new Deno.Command("pdftoppm", {
     args: ["-r", String(opts.dpi ?? 200), "-png", pdf, `${outDir}/slide`],
     stderr: "piped",
@@ -317,6 +319,7 @@ export async function knockOutWhite(
   out: string,
   similarity = 0.02,
 ): Promise<void> {
+  // swamp-quality-ignore deno-command: ffmpeg colorkey for transparent layers; argv array, no shell
   const r = await new Deno.Command("ffmpeg", {
     args: [
       "-loglevel",

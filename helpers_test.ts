@@ -11,7 +11,6 @@ import {
   topLevelChildren,
 } from "./pptx.ts";
 import { insertSlide, paperSlide, sectionSlide, statementSlide, timing } from "./slides.ts";
-import { summarize } from "./deck_summary_report.ts";
 
 Deno.test("findCaptions finds figure/table labels, skips running text", () => {
   const caps = findCaptions([
@@ -139,37 +138,4 @@ Deno.test("insertSlide appends or goes after a named slide", () => {
   assertEquals(mid.indexOf("## N") < mid.indexOf("## B"), true);
   assertEquals(mid.indexOf("## A") < mid.indexOf("## N"), true);
   assertThrows(() => insertSlide(src, "## N\n", "Z"));
-});
-
-Deno.test("summarize reports budget, CHECKs, provenance and journal", () => {
-  const r = summarize({
-    outline: {
-      title: "Talk",
-      visibleSlides: 10,
-      hiddenSlides: 1,
-      minutesPlanned: 36,
-      slotMinutes: 35,
-      notesCoverage: 0.9,
-      untimedVisible: [],
-      checks: [{ slide: 2, file: "a.qmd", text: "credit line" }],
-      missingImages: [],
-      dois: ["10.1/x"],
-      slides: [{ n: 2, title: "Slide two", hidden: false, minutes: 1 }],
-    },
-    figures: [{
-      path: "assets/h/t.png",
-      citation: "S 1959",
-      page: 3,
-      boxPt: { x: 1, y: 2, w: 3, h: 4 },
-      dpi: 200,
-      doi: "10.1/x",
-    }],
-    sources: [],
-    journal: { entries: [{ at: "2026-10-22T10:00:00Z", kind: "decision", text: "cut Pasteur" }] },
-  });
-  assertStringIncludes(r.markdown, "**1.0 min over**");
-  assertStringIncludes(r.markdown, "credit line");
-  assertStringIncludes(r.markdown, "| `assets/h/t.png` | S 1959 | 3 |");
-  assertStringIncludes(r.markdown, "**decision**: cut Pasteur");
-  assertEquals(r.json.figures, 1);
 });

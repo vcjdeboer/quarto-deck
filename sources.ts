@@ -138,6 +138,7 @@ export function slug(s: string): string {
 }
 
 async function run(cmd: string, args: string[]): Promise<string> {
+  // swamp-quality-ignore deno-command: poppler (pdfinfo/pdftotext/pdftoppm) reads paper PDFs; argv array, no shell
   const o = await new Deno.Command(cmd, {
     args,
     stdout: "piped",

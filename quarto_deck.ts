@@ -325,6 +325,11 @@ async function requireSource(
   return rec;
 }
 
+/** True when `source` already contains exactly this line (ignoring edge spaces). */
+export function hasLine(source: string, line: string): boolean {
+  return source.split("\n").some((l) => l.trim() === line.trim());
+}
+
 /** Path of the HTML Quarto writes for `main`. */
 export function htmlPath(dir: string, main: string): string {
   return `${dir.replace(/\/$/, "")}/${
@@ -997,6 +1002,13 @@ export const model = {
         }
         const path = `${g.dir}/${args.file}`;
         const cur = await Deno.readTextFile(path).catch(() => "");
+        // statements share one heading, so identify them by their sentence
+        const key = args.kind === "statement" ? args.title : md.split("\n")[0];
+        if (hasLine(cur, key)) {
+          throw new Error(
+            `${args.file} already has "${key}" — edit that slide instead of adding it again`,
+          );
+        }
         await Deno.writeTextFile(
           path,
           cur ? insertSlide(cur, md, args.after) : md,
@@ -1317,3 +1329,19 @@ export const model = {
     },
   },
 };
+
+// Log every method on entry (each logs its own result on completion).
+for (const [name, m] of Object.entries(model.methods)) {
+  const run = m.execute as (
+    args: unknown,
+    ctx: DeckContext,
+  ) => Promise<unknown>;
+  (m as { execute: unknown }).execute = (args: unknown, ctx: DeckContext) => {
+    ctx.logger.info("{method} on {main} in {dir}", {
+      method: name,
+      main: ctx.globalArgs.main,
+      dir: ctx.globalArgs.dir,
+    });
+    return run(args, ctx);
+  };
+}

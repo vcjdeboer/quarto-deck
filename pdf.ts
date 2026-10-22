@@ -43,6 +43,7 @@ async function run(cmd: string, args: string[], timeoutMs = 300000): Promise<
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeoutMs);
   try {
+    // swamp-quality-ignore deno-command: Chrome print-to-PDF and osascript (Quartz filter) have no swamp primitive; argv array, no shell
     const out = await new Deno.Command(cmd, {
       args,
       stdout: "piped",

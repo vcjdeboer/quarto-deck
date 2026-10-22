@@ -77,6 +77,7 @@ export function warningsFromLog(log: string): string[] {
 
 async function firstLine(cmd: string, args: string[]): Promise<string | null> {
   try {
+    // swamp-quality-ignore deno-command: reads quarto --version and R --version; argv array, no shell
     const o = await new Deno.Command(cmd, {
       args,
       stdout: "piped",
@@ -102,6 +103,7 @@ export async function renderDeck(opts: {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), opts.timeoutMs ?? 900000);
   try {
+    // swamp-quality-ignore deno-command: quarto render is the point of the method; argv array, cwd = deck dir, no shell
     const out = await new Deno.Command(opts.quarto ?? "quarto", {
       args: ["render", opts.main, ...(opts.extraArgs ?? [])],
       cwd: opts.dir,
