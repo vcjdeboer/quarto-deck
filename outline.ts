@@ -56,6 +56,17 @@ export interface DeckOutline {
   missingIncludes: string[];
   /** House-style findings on visible slides. */
   styleIssues: StyleIssue[];
+  /** Planned minutes per `#` section (slides before the first section: "Opening"). */
+  sections: SectionTime[];
+}
+
+/** Time planned in one section. */
+export interface SectionTime {
+  title: string;
+  /** Slide number of the section heading (null for the opening). */
+  slide: number | null;
+  slides: number;
+  minutes: number;
 }
 
 /** A slide that breaks a house-style rule. */
@@ -299,6 +310,36 @@ export function styleIssues(slides: SlideInfo[]): StyleIssue[] {
   return out;
 }
 
+/**
+ * Planned minutes per `#` section over visible slides; slides before the first
+ * section form "Opening". Empty sections (all slides hidden) are left out.
+ */
+export function sectionTimes(slides: SlideInfo[]): SectionTime[] {
+  const out: SectionTime[] = [];
+  let cur: SectionTime = {
+    title: "Opening",
+    slide: null,
+    slides: 0,
+    minutes: 0,
+  };
+  const flush = () => {
+    if (cur.slides > 0) {
+      out.push({ ...cur, minutes: Math.round(cur.minutes * 10) / 10 });
+    }
+  };
+  for (const s of slides) {
+    if (s.hidden) continue;
+    if (s.level === 1) {
+      flush();
+      cur = { title: s.title, slide: s.n, slides: 0, minutes: 0 };
+    }
+    cur.slides++;
+    cur.minutes += s.minutes ?? 0;
+  }
+  flush();
+  return out;
+}
+
 /** Summarise parsed slides into a deck outline (no IO). */
 export function outlineFromSlides(
   main: string,
@@ -350,6 +391,7 @@ export function outlineFromSlides(
     dois: [...new Set(slides.flatMap((s) => s.dois))],
     missingIncludes: opts.missingIncludes ?? [],
     styleIssues: styleIssues(slides),
+    sections: sectionTimes(slides),
   };
 }
 

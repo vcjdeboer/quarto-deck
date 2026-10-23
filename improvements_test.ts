@@ -106,3 +106,40 @@ Deno.test("isKeynote detects .key files and packages", () => {
   assertEquals(isKeynote("/a/talk.KEY/"), true);
   assertEquals(isKeynote("/a/talk.pptx"), false);
 });
+
+Deno.test("sectionTimes splits planned minutes per section, skipping hidden", async () => {
+  const { sectionTimes } = await import("./outline.ts");
+  const deck = `## Hello
+
+::: notes
+~1'.
+:::
+
+# Part A
+
+## A1
+
+::: notes
+~2'.
+:::
+
+## A2 {visibility="hidden"}
+
+::: notes
+~5'.
+:::
+
+# Part B
+
+## B1
+
+::: notes
+~30 s.
+:::
+`;
+  assertEquals(sectionTimes(parseQmd(src(deck)).slides), [
+    { title: "Opening", slide: null, slides: 1, minutes: 1 },
+    { title: "Part A", slide: 2, slides: 2, minutes: 2 },
+    { title: "Part B", slide: 5, slides: 2, minutes: 0.5 },
+  ]);
+});

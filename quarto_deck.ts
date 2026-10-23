@@ -117,6 +117,12 @@ const OutlineSchema = z.object({
   ),
   dois: z.array(z.string()),
   missingIncludes: z.array(z.string()),
+  sections: z.array(z.object({
+    title: z.string(),
+    slide: z.number().nullable(),
+    slides: z.number(),
+    minutes: z.number(),
+  })),
   styleIssues: z.array(z.object({
     slide: z.number(),
     title: z.string(),
@@ -376,12 +382,18 @@ export function outlineSummary(o: DeckOutline): string {
 /** Model definition. */
 export const model = {
   type: "@vcjdeboer/quarto-deck/deck",
-  version: "2026.10.23.1",
+  version: "2026.10.23.2",
   upgrades: [
     {
       toVersion: "2026.10.23.1",
       description:
         "House-style lint in outline, figure_crop trim, .key input; global arguments unchanged",
+      upgradeAttributes: (old: Record<string, unknown>) => old,
+    },
+    {
+      toVersion: "2026.10.23.2",
+      description:
+        "Planned minutes per section in outline; global arguments unchanged",
       upgradeAttributes: (old: Record<string, unknown>) => old,
     },
   ],

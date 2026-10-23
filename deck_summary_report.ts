@@ -72,6 +72,9 @@ export function summarize(d: DeckData, journalTail = 15): ReportResult {
       slides: Array<
         { n: number; title: string; hidden: boolean; minutes: number | null }
       >;
+      sections?: Array<
+        { title: string; slide: number | null; slides: number; minutes: number }
+      >;
       styleIssues?: Array<
         {
           slide: number;
@@ -106,6 +109,14 @@ export function summarize(d: DeckData, journalTail = 15): ReportResult {
         ".",
       "",
     );
+    const secs = o.sections ?? [];
+    if (secs.length > 1) {
+      md.push("| section | slides | min |", "|---|---|---|");
+      for (const x of secs) {
+        md.push(`| ${esc(x.title)} | ${x.slides} | ${x.minutes} |`);
+      }
+      md.push("");
+    }
     json.minutesPlanned = o.minutesPlanned;
     json.slotMinutes = o.slotMinutes;
     json.visibleSlides = o.visibleSlides;

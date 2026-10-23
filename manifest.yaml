@@ -1,6 +1,6 @@
 manifestVersion: 1
 name: "@vcjdeboer/quarto-deck"
-version: "2026.10.23.1"
+version: "2026.10.23.2"
 description: "Make Quarto reveal.js lecture decks the same way every time, and keep a record of how each was built. Register paper PDFs and crop their figures with provenance (page, box, dpi, DOI); write slides in house patterns (one paper, one message; timing in the notes); port slides and animation layers from old PowerPoint decks; outline the source (time budget vs slot, CHECK markers, missing images); render with R/knitr executing; check every slide in headless Chrome (overflow, contact sheets); export a PDF or image-based PPTX hand-out. A build journal records decisions and requests. Bundles the quarto-deck-authoring skill."
 repository: "https://github.com/vcjdeboer/quarto-deck"
 

@@ -28,6 +28,10 @@ a checked, distributable deck — and record how the deck was built.
   WebSocket; contact sheets are a grid page screenshotted by Chrome (no
   ImageMagick/ffmpeg). npm: `jszip@3.10.1`, `pptxgenjs@3.12.0`, `zod@4`.
 
+## 2026.10.23.2
+
+- `outline` splits the planned minutes per `#` section; the summary shows the table.
+
 ## 2026.10.23.1
 
 - `outline` lints house style (rules vs hints; animation steps are not builds).

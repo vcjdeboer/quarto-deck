@@ -47,7 +47,7 @@ swamp model method run mytalk slide_add --input kind=paper --input file=history/
 
 | method | what it does |
 |---|---|
-| `outline` | Follows `{{< include >}}`; lists slides, hidden slides, fragments, notes coverage, the `~1.5'` timings summed against `slotMinutes`, `CHECK:` markers, missing images, `.src` lines, DOIs, and **house-style findings** (see below). No render. |
+| `outline` | Follows `{{< include >}}`; lists slides, hidden slides, fragments, notes coverage, the `~1.5'` timings summed against `slotMinutes`, `CHECK:` markers, missing images, `.src` lines, DOIs, planned **minutes per section**, and **house-style findings** (see below). No render. |
 | `render` | `quarto render` with code executing; records input hash, Quarto and R versions, warnings. Skips when nothing changed (`force=true` to override). |
 | `check` | Every rendered slide in headless Chrome with all fragments shown: overflow beyond the slide box, contact sheets (PNG). |
 | `export_pdf` | Chrome `?print-pdf`, then (macOS) a Quartz filter to shrink images for a hand-out. |
