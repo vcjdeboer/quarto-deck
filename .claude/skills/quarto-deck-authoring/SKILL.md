@@ -33,13 +33,14 @@ swamp model create @vcjdeboer/quarto-deck/deck mytalk \
    3. `source_page key= page=3 outPng=/tmp/p3.png` — at 72 dpi one pixel is one
       PDF point, so read the crop box straight off the image.
    4. `figure_crop key= page= box={"x":..,"y":..,"w":..,"h":..} label=table1 section=history`
-      (200 dpi default). Look at the PNG; re-crop if the title or a column is cut.
+      (200 dpi default). Easier: give a generous box with `trim=true` and it
+      shrinks to the ink. Look at the PNG; re-crop if the title or a column is cut.
    5. `slide_add kind=paper file=history/_history.qmd figure=sbarra1959-table1
       title="1959: eating needs glycolysis, not oxygen" minutes=2 notes="..."
       reference="Sbarra AJ, Karnovsky ML. J Biol Chem 234:1355–1362 (1959)"`.
 3. **Reuse old decks** (never whole-slide screenshots — blurry, old theme,
    cannot animate):
-   1. `pptx_inventory path=old.pptx` — titles, notes, media per slide.
+   1. `pptx_inventory path=old.pptx` (or `old.key`) — titles, notes, media per slide.
    2. Sort each wanted slide and show the author the table before building:
 
       | content | do |
@@ -57,7 +58,7 @@ swamp model create @vcjdeboer/quarto-deck/deck mytalk \
 4. **Structure**: `slide_add kind=section` for dividers (title + one-line
    subtitle), `kind=statement` for one-sentence bridges.
 5. **Check before you say it is done**: `outline` (time budget, CHECKs, missing
-   images), `render`, `check` (overflow per slide, contact sheets — look at
+   images, house-style findings — fix the rules, judge the hints), `render`, `check` (overflow per slide, contact sheets — look at
    them), or all at once:
    `swamp workflow run @vcjdeboer/quarto-deck-build --input deck=mytalk`.
 6. **Hand-out**: `export_pdf` (shrinks with a Quartz filter on macOS),

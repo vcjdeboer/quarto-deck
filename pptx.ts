@@ -154,6 +154,11 @@ async function slideOrder(zip: JSZip): Promise<string[]> {
     .map((t) => resolvePart("ppt/presentation.xml", t));
 }
 
+/** Load a pptx from bytes. */
+export async function loadPptx(bytes: Uint8Array): Promise<JSZip> {
+  return await JSZip.loadAsync(bytes);
+}
+
 /** Open a pptx file. */
 export async function openPptx(path: string): Promise<JSZip> {
   return await JSZip.loadAsync(await Deno.readFile(path));
@@ -371,4 +376,50 @@ export function qmdStub(
     out.push(":::", "");
   }
   return out.join("\n");
+}
+
+/** True for Keynote documents. */
+export function isKeynote(path: string): boolean {
+  return /\.key\/?$/i.test(path);
+}
+
+/**
+ * Give `fn` a .pptx path for `path`: the file itself, or, for a Keynote .key,
+ * a temporary PowerPoint export made by Keynote (from a copy when the .key is
+ * a single file, so the original is never opened). Temp files are removed.
+ */
+export async function withPptx<T>(
+  path: string,
+  fn: (pptx: string) => Promise<T>,
+  timeoutMs = 600000,
+): Promise<T> {
+  if (!isKeynote(path)) return await fn(path);
+  if (Deno.build.os !== "darwin") {
+    throw new Error("reading .key needs Keynote (macOS)");
+  }
+  const dir = await Deno.makeTempDir({ prefix: "quarto-deck-key2pptx-" });
+  try {
+    const st = await Deno.stat(path);
+    const src = st.isFile ? `${dir}/source.key` : path;
+    if (st.isFile) await Deno.copyFile(path, src);
+    const out = `${dir}/converted.pptx`;
+    const q = (s: string) => s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    await osa(
+      `with timeout of ${Math.floor(timeoutMs / 1000) - 5} seconds
+tell application "Keynote"
+  set d to open POSIX file "${q(src)}"
+  delay 2
+  export d to POSIX file "${q(out)}" as Microsoft PowerPoint
+  close d saving no
+end tell
+end timeout`,
+      timeoutMs,
+    );
+    await Deno.stat(out).catch(() => {
+      throw new Error(`Keynote did not export ${path} to PowerPoint`);
+    });
+    return await fn(out);
+  } finally {
+    await Deno.remove(dir, { recursive: true }).catch(() => {});
+  }
 }

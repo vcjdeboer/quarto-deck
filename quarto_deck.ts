@@ -24,15 +24,19 @@ import {
   boxToPoints,
   type FigureRecord,
   findCaptions,
+  inkBounds,
   pageTexts,
+  parsePpm,
   pdfGeometry,
   pixelCrop,
   pngSize,
   renderPage,
+  renderPpm,
   searchPages,
   sha256File,
   slug,
   type SourceRecord,
+  trimmedBox,
 } from "./sources.ts";
 import { captureSlides } from "./check.ts";
 import { imagePptx } from "./export_pptx.ts";
@@ -47,10 +51,12 @@ import {
   keynoteExport,
   knockOutWhite,
   layerCopy,
+  loadPptx,
   mediaName,
   openPptx,
   qmdStub,
   slideShapes,
+  withPptx,
 } from "./pptx.ts";
 
 const GlobalArgsSchema = z.object({
@@ -79,6 +85,8 @@ const SlideSchema = z.object({
   file: z.string(),
   line: z.number(),
   fragments: z.number(),
+  steps: z.number(),
+  hasRef: z.boolean(),
   hasNotes: z.boolean(),
   minutes: z.number().nullable(),
   images: z.array(z.string()),
@@ -109,6 +117,20 @@ const OutlineSchema = z.object({
   ),
   dois: z.array(z.string()),
   missingIncludes: z.array(z.string()),
+  styleIssues: z.array(z.object({
+    slide: z.number(),
+    title: z.string(),
+    rule: z.enum([
+      "one-figure",
+      "one-source",
+      "no-builds",
+      "notes",
+      "timing",
+      "doi",
+    ]),
+    level: z.enum(["rule", "hint"]),
+    message: z.string(),
+  })),
 });
 
 const BuildSchema = z.object({
@@ -192,6 +214,8 @@ const FigureSchema = z.object({
   sourceSha256: z.string(),
   page: z.number(),
   boxPt: BoxSchema,
+  requestedBoxPt: BoxSchema,
+  trimmed: z.boolean(),
   dpi: z.number(),
   path: z.string(),
   widthPx: z.number(),
@@ -344,13 +368,23 @@ export function outlineSummary(o: DeckOutline): string {
     `${o.minutesPlanned} min planned${slot}, notes on ${
       Math.round(o.notesCoverage * 100)
     }%, ` +
-    `${o.checks.length} CHECK, ${o.missingImages.length} missing images`;
+    `${o.checks.length} CHECK, ${o.missingImages.length} missing images, ` +
+    `${o.styleIssues.filter((x) => x.level === "rule").length} style issues ` +
+    `(+${o.styleIssues.filter((x) => x.level === "hint").length} hints)`;
 }
 
 /** Model definition. */
 export const model = {
   type: "@vcjdeboer/quarto-deck/deck",
-  version: "2026.10.22.1",
+  version: "2026.10.23.1",
+  upgrades: [
+    {
+      toVersion: "2026.10.23.1",
+      description:
+        "House-style lint in outline, figure_crop trim, .key input; global arguments unchanged",
+      upgradeAttributes: (old: Record<string, unknown>) => old,
+    },
+  ],
   globalArguments: GlobalArgsSchema,
   reports: ["@vcjdeboer/quarto-deck/deck-summary"],
   resources: {
@@ -484,6 +518,11 @@ export const model = {
         const g = ctx.globalArgs;
         const o = outlineDeck(g.dir, g.main, g.slotMinutes ?? null);
         ctx.logger.info(outlineSummary(o));
+        for (const x of o.styleIssues.filter((i) => i.level === "rule")) {
+          ctx.logger.info('style: slide {slide} "{title}": {message}', {
+            ...x,
+          });
+        }
         const h = await ctx.writeResource("outline", "outline", { ...o });
         return { dataHandles: [h] };
       },
@@ -829,6 +868,12 @@ export const model = {
         label: z.string().describe("e.g. table1, fig2D"),
         section: z.string().describe("Asset sub-folder, e.g. history"),
         dpi: z.number().default(200),
+        trim: z.boolean().default(false).describe(
+          "Shrink the box to the ink inside it (give a generous box)",
+        ),
+        pad: z.number().min(0).default(4).describe(
+          "Margin kept around the ink when trimming, in points",
+        ),
       }),
       execute: async (
         args: {
@@ -838,6 +883,8 @@ export const model = {
           label: string;
           section: string;
           dpi: number;
+          trim: boolean;
+          pad: number;
         },
         ctx: DeckContext,
       ): Promise<{ dataHandles: Handle[] }> => {
@@ -845,7 +892,23 @@ export const model = {
         const rec = await requireSource(ctx, args.key);
         const size = rec.pageSizes.find((p) => p.page === args.page);
         if (!size) throw new Error(`${rec.key} has no page ${args.page}`);
-        const boxPt = boxToPoints(args.box, size);
+        const requestedBoxPt = boxToPoints(args.box, size);
+        let boxPt = requestedBoxPt;
+        if (args.trim) {
+          const measureDpi = 144;
+          const ink = inkBounds(parsePpm(
+            await renderPpm({
+              pdf: `${g.dir}/${rec.stored}`,
+              page: args.page,
+              dpi: measureDpi,
+              cropPx: pixelCrop(requestedBoxPt, measureDpi),
+            }),
+          ));
+          if (!ink) {
+            throw new Error(`the box on ${rec.key} p${args.page} is blank`);
+          }
+          boxPt = trimmedBox(requestedBoxPt, ink, measureDpi, args.pad);
+        }
         const png = await renderPage({
           pdf: `${g.dir}/${rec.stored}`,
           page: args.page,
@@ -869,6 +932,8 @@ export const model = {
           sourceSha256: rec.sha256,
           page: args.page,
           boxPt,
+          requestedBoxPt,
+          trimmed: args.trim,
           dpi: args.dpi,
           path: rel,
           widthPx: width,
@@ -1039,12 +1104,14 @@ export const model = {
     pptx_inventory: {
       description:
         "List the slides of an old PowerPoint deck: titles, text, speaker notes, hidden, media",
-      arguments: z.object({ path: z.string() }),
+      arguments: z.object({
+        path: z.string().describe(".pptx, or .key (converted via Keynote)"),
+      }),
       execute: async (
         args: { path: string },
         ctx: DeckContext,
       ): Promise<{ dataHandles: Handle[] }> => {
-        const slides = await inventory(await openPptx(args.path));
+        const slides = await inventory(await withPptx(args.path, openPptx));
         const deck = deckKey(args.path);
         for (const s of slides) {
           ctx.logger.info("{n}{h} {title} [{m} media]", {
@@ -1073,7 +1140,10 @@ export const model = {
         args: { path: string; slide: number },
         ctx: DeckContext,
       ): Promise<{ dataHandles: Handle[] }> => {
-        const shapes = await slideShapes(await openPptx(args.path), args.slide);
+        const shapes = await slideShapes(
+          await withPptx(args.path, openPptx),
+          args.slide,
+        );
         for (const x of shapes) {
           ctx.logger.info("{id} {kind} {name} {text}", { ...x });
         }
@@ -1102,7 +1172,9 @@ export const model = {
       ): Promise<{ dataHandles: Handle[] }> => {
         const g = ctx.globalArgs;
         const deck = deckKey(args.path);
-        const zip = await openPptx(args.path);
+        // read once: a .key is converted by Keynote, which is slow
+        const src = await withPptx(args.path, (p) => Deno.readFile(p));
+        const zip = await loadPptx(src);
         const inv = await inventory(zip);
         const outRel = `${g.assetsDir}/${slug(args.section)}`;
         await Deno.mkdir(`${g.dir}/${outRel}`, { recursive: true });
@@ -1121,7 +1193,6 @@ export const model = {
         if (args.images) {
           const tmp = await Deno.makeTempDir({ prefix: "quarto-deck-key-" });
           try {
-            const src = await Deno.readFile(args.path);
             for (const n of args.slides) {
               const copy = `${tmp}/${deck}_s${n}.pptx`;
               await Deno.writeFile(copy, await layerCopy(src, n, { drop: [] }));
@@ -1194,10 +1265,14 @@ export const model = {
           const copy = `${tmp}/${deck}_${slug(args.name)}.pptx`;
           await Deno.writeFile(
             copy,
-            await layerCopy(await Deno.readFile(args.path), args.slide, {
-              keep: args.keep,
-              drop: args.drop,
-            }),
+            await layerCopy(
+              await withPptx(args.path, (p) => Deno.readFile(p)),
+              args.slide,
+              {
+                keep: args.keep,
+                drop: args.drop,
+              },
+            ),
           );
           const pngs = await keynoteExport(copy, `${tmp}/out`);
           if (!pngs.length) throw new Error("Keynote exported nothing");
@@ -1246,7 +1321,7 @@ export const model = {
         if (await Deno.stat(out).then(() => true, () => false)) {
           throw new Error(`${args.file} exists; choose a new file`);
         }
-        const inv = await inventory(await openPptx(args.path));
+        const inv = await inventory(await withPptx(args.path, openPptx));
         const chosen = args.slides.map((n) => {
           if (!inv[n - 1]) throw new Error(`${deck} has ${inv.length} slides`);
           return inv[n - 1];

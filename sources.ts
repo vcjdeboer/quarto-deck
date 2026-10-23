@@ -43,6 +43,9 @@ export interface FigureRecord {
   page: number;
   /** Crop box in PDF points, origin top-left: x, y, width, height. */
   boxPt: { x: number; y: number; w: number; h: number };
+  /** The box as asked for, before trimming. */
+  requestedBoxPt: { x: number; y: number; w: number; h: number };
+  trimmed: boolean;
   dpi: number;
   path: string;
   widthPx: number;
@@ -240,4 +243,108 @@ export async function renderPage(opts: {
 export function pngSize(png: Uint8Array): { width: number; height: number } {
   const dv = new DataView(png.buffer, png.byteOffset, png.byteLength);
   return { width: dv.getUint32(16), height: dv.getUint32(20) };
+}
+
+/** Parse a binary PPM (P6, maxval 255): width, height and RGB bytes. */
+export function parsePpm(
+  bytes: Uint8Array,
+): { width: number; height: number; data: Uint8Array } {
+  // header: "P6" <ws> width <ws> height <ws> maxval <single ws> data
+  const tokens: string[] = [];
+  let i = 0;
+  while (tokens.length < 4 && i < bytes.length) {
+    while (i < bytes.length && /\s/.test(String.fromCharCode(bytes[i]))) i++;
+    if (bytes[i] === 0x23) { // comment line
+      while (i < bytes.length && bytes[i] !== 0x0a) i++;
+      continue;
+    }
+    let t = "";
+    while (i < bytes.length && !/\s/.test(String.fromCharCode(bytes[i]))) {
+      t += String.fromCharCode(bytes[i++]);
+    }
+    tokens.push(t);
+  }
+  if (tokens[0] !== "P6" || tokens[3] !== "255") {
+    throw new Error(`unsupported PPM header ${tokens.join(" ")}`);
+  }
+  const width = Number(tokens[1]), height = Number(tokens[2]);
+  const data = bytes.subarray(i + 1, i + 1 + width * height * 3);
+  if (data.length !== width * height * 3) throw new Error("truncated PPM data");
+  return { width, height, data };
+}
+
+/**
+ * Bounding box (pixels, inclusive) of "ink": pixels whose darkest channel is
+ * below `threshold`. Null when the image is blank.
+ */
+export function inkBounds(
+  img: { width: number; height: number; data: Uint8Array },
+  threshold = 235,
+): { x0: number; y0: number; x1: number; y1: number } | null {
+  let x0 = img.width, y0 = img.height, x1 = -1, y1 = -1;
+  for (let y = 0; y < img.height; y++) {
+    for (let x = 0; x < img.width; x++) {
+      const k = (y * img.width + x) * 3;
+      const d = Math.min(img.data[k], img.data[k + 1], img.data[k + 2]);
+      if (d < threshold) {
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      }
+    }
+  }
+  return x1 < 0 ? null : { x0, y0, x1, y1 };
+}
+
+/**
+ * Shrink a box (points) to the ink inside it plus `padPt`, given ink bounds
+ * measured at `dpi` within that box. Never grows beyond the original box.
+ */
+export function trimmedBox(
+  boxPt: { x: number; y: number; w: number; h: number },
+  ink: { x0: number; y0: number; x1: number; y1: number },
+  dpi: number,
+  padPt = 4,
+): { x: number; y: number; w: number; h: number } {
+  const s = 72 / dpi;
+  const x = Math.max(boxPt.x, boxPt.x + ink.x0 * s - padPt);
+  const y = Math.max(boxPt.y, boxPt.y + ink.y0 * s - padPt);
+  const r = Math.min(boxPt.x + boxPt.w, boxPt.x + (ink.x1 + 1) * s + padPt);
+  const b = Math.min(boxPt.y + boxPt.h, boxPt.y + (ink.y1 + 1) * s + padPt);
+  return { x, y, w: r - x, h: b - y };
+}
+
+/** Render a crop of one page as PPM (for measuring, not for slides). */
+export async function renderPpm(opts: {
+  pdf: string;
+  page: number;
+  dpi: number;
+  cropPx: { x: number; y: number; W: number; H: number };
+}): Promise<Uint8Array> {
+  const dir = await Deno.makeTempDir({ prefix: "quarto-deck-ppm-" });
+  try {
+    await run("pdftoppm", [
+      "-f",
+      String(opts.page),
+      "-l",
+      String(opts.page),
+      "-r",
+      String(opts.dpi),
+      "-x",
+      String(opts.cropPx.x),
+      "-y",
+      String(opts.cropPx.y),
+      "-W",
+      String(opts.cropPx.W),
+      "-H",
+      String(opts.cropPx.H),
+      "-singlefile",
+      opts.pdf,
+      `${dir}/p`,
+    ]);
+    return await Deno.readFile(`${dir}/p.ppm`);
+  } finally {
+    await Deno.remove(dir, { recursive: true }).catch(() => {});
+  }
 }

@@ -72,6 +72,15 @@ export function summarize(d: DeckData, journalTail = 15): ReportResult {
       slides: Array<
         { n: number; title: string; hidden: boolean; minutes: number | null }
       >;
+      styleIssues?: Array<
+        {
+          slide: number;
+          title: string;
+          rule: string;
+          level?: string;
+          message: string;
+        }
+      >;
     }
     | undefined;
   md.push(`# ${o?.title ?? "Deck"} — summary`, "");
@@ -113,6 +122,27 @@ export function summarize(d: DeckData, journalTail = 15): ReportResult {
       }
       md.push("");
     }
+    const style = o.styleIssues ?? [];
+    const rules = style.filter((x) => x.level !== "hint");
+    const hints = style.filter((x) => x.level === "hint");
+    if (style.length) {
+      md.push("## House style", "");
+      for (const x of rules) {
+        md.push(`- slide ${x.slide} “${x.title}”: ${x.message}`);
+      }
+      const byRule = new Map<string, typeof hints>();
+      for (const h of hints) {
+        byRule.set(h.message, [...(byRule.get(h.message) ?? []), h]);
+      }
+      for (const [msg, hs] of byRule) {
+        md.push(`- hint (${hs.length}): ${msg} — slides ${
+          hs.map((h) => h.slide).join(", ")
+        }`);
+      }
+      md.push("");
+    }
+    json.styleIssues = rules.length;
+    json.styleHints = hints.length;
     json.checks = o.checks.length;
     json.missingImages = o.missingImages.length;
   }

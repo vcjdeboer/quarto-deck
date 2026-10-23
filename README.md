@@ -47,7 +47,7 @@ swamp model method run mytalk slide_add --input kind=paper --input file=history/
 
 | method | what it does |
 |---|---|
-| `outline` | Follows `{{< include >}}`; lists slides, hidden slides, fragments, notes coverage, the `~1.5'` timings summed against `slotMinutes`, `CHECK:` markers, missing images, `.src` lines, DOIs. No render. |
+| `outline` | Follows `{{< include >}}`; lists slides, hidden slides, fragments, notes coverage, the `~1.5'` timings summed against `slotMinutes`, `CHECK:` markers, missing images, `.src` lines, DOIs, and **house-style findings** (see below). No render. |
 | `render` | `quarto render` with code executing; records input hash, Quarto and R versions, warnings. Skips when nothing changed (`force=true` to override). |
 | `check` | Every rendered slide in headless Chrome with all fragments shown: overflow beyond the slide box, contact sheets (PNG). |
 | `export_pdf` | Chrome `?print-pdf`, then (macOS) a Quartz filter to shrink images for a hand-out. |
@@ -55,14 +55,28 @@ swamp model method run mytalk slide_add --input kind=paper --input file=history/
 | `source_add` | Registers a paper PDF: copy in `sources/`, checksum, pages, figure/table captions per page. |
 | `source_find` | Text search in a source. |
 | `source_page` | Page preview; at 72 dpi a pixel is a PDF point, for choosing crop boxes. |
-| `figure_crop` | Crops a figure/table into `assets/<section>/<key>_<label>.png` with provenance. |
+| `figure_crop` | Crops a figure/table into `assets/<section>/<key>_<label>.png` with provenance. `trim=true` shrinks a generous box to the ink inside it (plus `pad` points). |
 | `slide_add` | Writes a `paper`, `section` or `statement` slide in house style into a section file. |
 | `journal` | Records a decision, request or change with its reason. |
-| `pptx_inventory` | Old PowerPoint: titles, text, notes, hidden, media per slide. |
+| `pptx_inventory` | Old PowerPoint: titles, text, notes, hidden, media per slide. All `pptx_*` methods also take a Keynote `.key` (converted via Keynote from a temporary copy). |
 | `pptx_shapes` | Top-level shapes of one slide (ids for layers). |
 | `pptx_extract` | Original-resolution media of chosen slides into `assets/`; optionally whole slides via Keynote. |
 | `pptx_layer` | One slide with only chosen shapes, via Keynote → PDF → PNG (2000 px), optional white knock-out, for layered animations. |
 | `pptx_to_qmd` | Stub `.qmd` for chosen slides, each with a `CHECK:` to sort it (reuse, redraw, re-crop). |
+
+### House-style lint
+
+`outline` checks every visible `##` slide. A *paper slide* is one with a `.src`
+line.
+
+| rule | flags |
+|---|---|
+| one-figure | more than one image on a paper slide |
+| one-source | more than one `.src` line |
+| no-builds | click builds on a paper slide (`.fragment .step` animation steps are fine) |
+| notes | no speaker notes |
+| timing | notes that do not start with `~1.5'` / `~45 s` |
+| doi (hint) | a paper slide whose notes cite no reference |
 
 Report `@vcjdeboer/quarto-deck/deck-summary` runs after every method: time
 budget, open CHECKs, overflow, figure provenance table, references, last

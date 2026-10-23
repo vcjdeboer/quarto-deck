@@ -24,6 +24,10 @@ export interface SlideInfo {
   /** 1-based line of the heading in `file`. */
   line: number;
   fragments: number;
+  /** Fragments that drive an animation (`.fragment .step`), not text builds. */
+  steps: number;
+  /** Notes cite a reference (`Ref:` line or a DOI). */
+  hasRef: boolean;
   hasNotes: boolean;
   /** Minutes parsed from the notes (`~1.5'`, `~45 s`), null when absent. */
   minutes: number | null;
@@ -50,6 +54,18 @@ export interface DeckOutline {
   checks: Array<{ slide: number | null; file: string; text: string }>;
   dois: string[];
   missingIncludes: string[];
+  /** House-style findings on visible slides. */
+  styleIssues: StyleIssue[];
+}
+
+/** A slide that breaks a house-style rule. */
+export interface StyleIssue {
+  slide: number;
+  title: string;
+  rule: "one-figure" | "one-source" | "no-builds" | "notes" | "timing" | "doi";
+  /** rule = breaks the house style; hint = worth fixing, often fine. */
+  level: "rule" | "hint";
+  message: string;
 }
 
 /** A source line tagged with the file it came from (after include expansion). */
@@ -73,6 +89,12 @@ export function parseMinutes(notes: string): number | null {
   const sec = notes.match(/~\s*(\d+(?:[.,]\d+)?)\s*s(?:ec)?\b/);
   if (sec) return Number(sec[1].replace(",", ".")) / 60;
   return null;
+}
+
+/** Attribute blocks that are animation steps: both `.fragment` and `.step`. */
+export function countSteps(text: string): number {
+  return [...text.matchAll(/\{[^{}]*\}/g)]
+    .filter((m) => /\.fragment\b/.test(m[0]) && /\.step\b/.test(m[0])).length;
 }
 
 /** Trim sentence punctuation and unbalanced closing parentheses off a DOI. */
@@ -159,6 +181,9 @@ export function parseQmd(lines: SourceLine[]): {
       if (wasNotes && !inNotes() && cur) {
         const notes = notesBuf.join("\n");
         cur.hasNotes = true;
+        if (/\bRef(?:erence)?s?:|doi:|doi\.org\//i.test(notes)) {
+          cur.hasRef = true;
+        }
         if (cur.minutes === null) cur.minutes = parseMinutes(notes);
         for (
           const d of notes.matchAll(
@@ -177,6 +202,7 @@ export function parseQmd(lines: SourceLine[]): {
       const isNotes = /^(\{\s*)?\.?notes\b/.test(open[2].trim());
       if (cur && !isNotes && !inNotes()) {
         cur.fragments += (open[2].match(/\.fragment\b/g) ?? []).length;
+        cur.steps += countSteps(open[2]);
       }
       divStack.push(isNotes);
       continue;
@@ -202,6 +228,8 @@ export function parseQmd(lines: SourceLine[]): {
         file,
         line,
         fragments: 0,
+        steps: 0,
+        hasRef: false,
         hasNotes: false,
         minutes: null,
         images: [],
@@ -214,12 +242,61 @@ export function parseQmd(lines: SourceLine[]): {
     }
     if (!cur) continue;
     cur.fragments += (text.match(/\.fragment\b/g) ?? []).length;
+    cur.steps += countSteps(text);
     cur.images.push(...imagesInLine(text));
     for (const s of text.matchAll(/\[([^\]]+)\]\{\.src\b[^}]*\}/g)) {
       cur.src.push(s[1]);
     }
   }
   return { slides, title, orphanChecks };
+}
+
+/**
+ * House-style lint for visible slides. A "paper slide" is one with a `.src`
+ * line: it should show one figure from one source, without click builds, and
+ * cite the DOI in its notes. Every `##` slide should have notes that start with
+ * a timing.
+ */
+export function styleIssues(slides: SlideInfo[]): StyleIssue[] {
+  const out: StyleIssue[] = [];
+  const add = (s: SlideInfo, rule: StyleIssue["rule"], message: string) =>
+    out.push({
+      slide: s.n,
+      title: s.title,
+      rule,
+      level: rule === "doi" ? "hint" : "rule",
+      message,
+    });
+  for (const s of slides) {
+    if (s.hidden || s.level !== 2) continue;
+    const paper = s.src.length > 0;
+    if (paper && s.images.length > 1) {
+      add(
+        s,
+        "one-figure",
+        `${s.images.length} images on a paper slide; show one figure`,
+      );
+    }
+    if (s.src.length > 1) {
+      add(s, "one-source", `${s.src.length} source lines; one paper per slide`);
+    }
+    const builds = s.fragments - s.steps;
+    if (paper && builds > 0) {
+      add(
+        s,
+        "no-builds",
+        `${builds} click builds on a paper slide; talk over the figure instead`,
+      );
+    }
+    if (!s.hasNotes) add(s, "notes", "no speaker notes");
+    else if (s.minutes === null) {
+      add(s, "timing", "notes do not start with a timing like ~1.5' or ~45 s");
+    }
+    if (paper && s.hasNotes && !s.hasRef) {
+      add(s, "doi", "paper slide whose notes cite no reference (Ref: … doi:…)");
+    }
+  }
+  return out;
 }
 
 /** Summarise parsed slides into a deck outline (no IO). */
@@ -272,6 +349,7 @@ export function outlineFromSlides(
     checks,
     dois: [...new Set(slides.flatMap((s) => s.dois))],
     missingIncludes: opts.missingIncludes ?? [],
+    styleIssues: styleIssues(slides),
   };
 }
 

@@ -28,6 +28,12 @@ a checked, distributable deck — and record how the deck was built.
   WebSocket; contact sheets are a grid page screenshotted by Chrome (no
   ImageMagick/ffmpeg). npm: `jszip@3.10.1`, `pptxgenjs@3.12.0`, `zod@4`.
 
+## 2026.10.23.1
+
+- `outline` lints house style (rules vs hints; animation steps are not builds).
+- `figure_crop trim=true`: ink bounds measured on a 144 dpi PPM render (pure TS).
+- `.key` input for all `pptx_*` methods via a Keynote PowerPoint export of a temp copy.
+
 ## Methods
 
 outline · render · check · export_pdf · export_pptx · source_add · source_find
@@ -55,6 +61,4 @@ Workflow `@vcjdeboer/quarto-deck-build`: outline → render → check → pdf �
 
 ## Not yet
 
-- Keynote `.key` input (only .pptx; Keynote can open .key for the export path).
 - Redraw of schematics (Rough.js/GSAP) stays a manual/agent step guided by the skill.
-- Publish: GitHub repo `vcjdeboer/quarto-deck`, adversarial review report, `swamp extension push`.
