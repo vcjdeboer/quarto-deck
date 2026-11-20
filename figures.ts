@@ -396,9 +396,16 @@ export function drawRect(
 
 /** 3x5 bitmaps of the digits 0-9 (rows top to bottom, 3 bits each). */
 const DIGITS = [
-  [7, 5, 5, 5, 7], [2, 6, 2, 2, 7], [7, 1, 7, 4, 7], [7, 1, 7, 1, 7],
-  [5, 5, 7, 1, 1], [7, 4, 7, 1, 7], [7, 4, 7, 5, 7], [7, 1, 2, 2, 2],
-  [7, 5, 7, 5, 7], [7, 5, 7, 1, 7],
+  [7, 5, 5, 5, 7],
+  [2, 6, 2, 2, 7],
+  [7, 1, 7, 4, 7],
+  [7, 1, 7, 1, 7],
+  [5, 5, 7, 1, 1],
+  [7, 4, 7, 1, 7],
+  [7, 4, 7, 5, 7],
+  [7, 1, 2, 2, 2],
+  [7, 5, 7, 5, 7],
+  [7, 5, 7, 1, 7],
 ];
 
 /** Write a number with the 3x5 digit font, `scale` px per dot, on white. */
@@ -415,7 +422,11 @@ function drawNumber(
   for (let yy = y - scale; yy < y + h; yy++) {
     for (let xx = x - scale; xx < x + w; xx++) {
       if (xx < 0 || yy < 0 || xx >= img.width || yy >= img.height) continue;
-      img.data.fill(255, (yy * img.width + xx) * 3, (yy * img.width + xx) * 3 + 3);
+      img.data.fill(
+        255,
+        (yy * img.width + xx) * 3,
+        (yy * img.width + xx) * 3 + 3,
+      );
     }
   }
   [...text].forEach((c, k) => {
@@ -426,7 +437,9 @@ function drawNumber(
         for (let dy = 0; dy < scale; dy++) {
           for (let dx = 0; dx < scale; dx++) {
             const px = x + (k * 4 + col) * scale + dx, py = y + r * scale + dy;
-            if (px < 0 || py < 0 || px >= img.width || py >= img.height) continue;
+            if (px < 0 || py < 0 || px >= img.width || py >= img.height) {
+              continue;
+            }
             const i = (py * img.width + px) * 3;
             img.data[i] = color[0];
             img.data[i + 1] = color[1];
@@ -451,7 +464,11 @@ export function drawGrid(img: Rgb, dpi: number, stepPt = 50): void {
       img.data[i + k] = Math.round(img.data[i + k] * (1 - a) + c[k] * a);
     }
   };
-  for (let pt = stepPt; pt * s < Math.max(img.width, img.height); pt += stepPt) {
+  for (
+    let pt = stepPt;
+    pt * s < Math.max(img.width, img.height);
+    pt += stepPt
+  ) {
     const major = pt % (2 * stepPt) === 0;
     const c: [number, number, number] = major ? [0, 120, 200] : [0, 160, 220];
     const a = major ? 0.55 : 0.25;
@@ -771,7 +788,8 @@ export function abbrevJournal(name: string | undefined): string {
   return JOURNAL_ABBREV[n.toLowerCase()] ?? n;
 }
 
-const clean = (s: string) => s.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
+const clean = (s: string) =>
+  s.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
 
 /** Surname with its particles: "Anna M. van Dam" -> "van Dam". */
 export function fullSurname(author: string): string {
@@ -779,7 +797,10 @@ export function fullSurname(author: string): string {
   if (a.includes(",")) return a.split(",")[0].trim();
   const parts = a.split(" ").filter((p) => !/^(jr|sr|ii|iii|iv)\.?$/i.test(p));
   let i = parts.length - 1;
-  while (i > 0 && /^(de|der|den|van|von|da|di|du|del|la|le|ten|ter|op)$/i.test(parts[i - 1])) i--;
+  while (
+    i > 0 &&
+    /^(de|der|den|van|von|da|di|du|del|la|le|ten|ter|op)$/i.test(parts[i - 1])
+  ) i--;
   return parts.slice(i).join(" ");
 }
 
@@ -794,7 +815,10 @@ function initials(author: string): string {
 }
 
 /** Is `author` the person named `highlight` (a surname such as "van Dam")? */
-export function isAuthor(author: string, highlight: string | undefined): boolean {
+export function isAuthor(
+  author: string,
+  highlight: string | undefined,
+): boolean {
   if (!highlight) return false;
   const n = (s: string) => ascii(clean(s)).toLowerCase();
   return n(fullSurname(author)) === n(highlight);
@@ -830,7 +854,8 @@ export function citationFromMeta(
       ? `${b(0)} & ${b(1)}`
       : `${b(0)} et al.`;
   } else if (a.length <= 5) {
-    who = s.slice(0, -1).map((_, i) => b(i)).join(", ") + ` & ${b(a.length - 1)}`;
+    who = s.slice(0, -1).map((_, i) => b(i)).join(", ") +
+      ` & ${b(a.length - 1)}`;
   } else if (h <= 3) {
     who = s.slice(0, h + 1).map((_, i) => b(i)).join(", ") + " et al.";
   } else {
@@ -841,7 +866,9 @@ export function citationFromMeta(
       : " et al.";
     who = `${b(0)}, ${b(1)} ... ${b(h)}${tail}`;
   }
-  const where = [abbrevJournal(m.journal), volPage(m)].filter(Boolean).join(" ");
+  const where = [abbrevJournal(m.journal), volPage(m)].filter(Boolean).join(
+    " ",
+  );
   return [[who, m.year].filter(Boolean).join(" "), where].filter(Boolean)
     .join(", ");
 }
@@ -867,7 +894,9 @@ export function referenceFromMeta(
   else {
     const h = a.findIndex((x) => isAuthor(x, highlight));
     const mid = h >= 3 && h < a.length - 1 ? ` … ${name(a[h])}` : "";
-    who = `${a.slice(0, 3).map(name).join(", ")}${mid} … ${name(a[a.length - 1])}`;
+    who = `${a.slice(0, 3).map(name).join(", ")}${mid} … ${
+      name(a[a.length - 1])
+    }`;
   }
   const pages = (m.page ?? "").replace(/-/g, "–");
   const where = [
@@ -875,7 +904,8 @@ export function referenceFromMeta(
     m.volume && pages ? `${m.volume}:${pages}` : m.volume ?? "",
   ].filter(Boolean).join(" ");
   const title = clean(m.title ?? "").replace(/\.$/, "");
-  return `${who} (${m.year ?? "n.d."})${title ? ` ${title}.` : ""} ${where}`.trim();
+  return `${who} (${m.year ?? "n.d."})${title ? ` ${title}.` : ""} ${where}`
+    .trim();
 }
 
 /** `~/x` → `$HOME/x`. */

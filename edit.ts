@@ -652,7 +652,6 @@ function spanOf(st: DeckState, i: number): Span {
   return slideSpan(st.text[s.file], s.line, next);
 }
 
-
 /** What `slide_edit` changes; omitted fields stay as they are. */
 export interface SlideEdit {
   title?: string;
@@ -705,7 +704,9 @@ export function editSlideLines(
         /<img\b/,
         `<img style="max-height: ${e.maxHeight}px; display: block; margin: 0 auto;"`,
       );
-    } else throw new Error(`cannot set the size of the image on line ${ref.line + 1}`);
+    } else {throw new Error(
+        `cannot set the size of the image on line ${ref.line + 1}`,
+      );}
     changes.push(`max-height ${e.maxHeight}px on ${ref.path}`);
   }
   if (e.notes !== undefined || e.minutes !== undefined) {
@@ -715,7 +716,9 @@ export function editSlideLines(
       else if (a >= 0 && /^:{3,}\s*$/.test(out[i])) b = i;
     }
     const body = a >= 0 && b > a ? out.slice(a + 1, b) : [];
-    const keep = body.filter((l) => /^\s*(Ref(?:erence)?s?:|CHECK:|doi:)/i.test(l));
+    const keep = body.filter((l) =>
+      /^\s*(Ref(?:erence)?s?:|CHECK:|doi:)/i.test(l)
+    );
     const text = body.filter((l) => !keep.includes(l)).join(" ").trim();
     const tm = text.match(/^~\s?[\d.]+\s?(?:'|s\b|min\b)\.?/);
     const timing = e.minutes !== undefined
@@ -737,9 +740,15 @@ export function editSlideLines(
       out.splice(at, 0, "", ...block);
     }
     if (e.notes !== undefined) changes.push("notes rewritten");
-    if (e.minutes !== undefined) changes.push(`timing ${timingText(e.minutes)}`);
+    if (e.minutes !== undefined) {
+      changes.push(`timing ${timingText(e.minutes)}`);
+    }
   }
-  if (!changes.length) throw new Error("nothing to change: give title, notes, minutes or maxHeight");
+  if (!changes.length) {
+    throw new Error(
+      "nothing to change: give title, notes, minutes or maxHeight",
+    );
+  }
   return { lines: out, changes };
 }
 
@@ -1254,7 +1263,9 @@ export function editMethods(journal: JournalFn) {
           line: s.line,
           n: st.numbers[i],
           backup: backup.id,
-          detail: `${r.changes.join("; ")}${args.reason ? `: ${args.reason}` : ""}`,
+          detail: `${r.changes.join("; ")}${
+            args.reason ? `: ${args.reason}` : ""
+          }`,
         });
       },
     },

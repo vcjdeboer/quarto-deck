@@ -842,7 +842,8 @@ export function colourMap(
 }
 
 /** `#abc` / `#AABBCC` written as a colour (not `&#123;`, not a `(#anchor)`). */
-const HEX_IN_TEXT = /(?<![\w&(#])#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![0-9a-zA-Z_-])/g;
+const HEX_IN_TEXT =
+  /(?<![\w&(#])#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![0-9a-zA-Z_-])/g;
 
 /**
  * Replace exact matches of old brand colours in a slide source. The front

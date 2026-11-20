@@ -85,13 +85,19 @@ export function replaceNumberedList(
       break;
     }
   }
-  if (a < 0) throw new Error(`no numbered list between lines ${start + 1} and ${end}`);
+  if (a < 0) {
+    throw new Error(`no numbered list between lines ${start + 1} and ${end}`);
+  }
   let b = a + 1;
   while (
     b < end && lines[b].trim() !== "" && !/^\s*:{3,}/.test(lines[b])
   ) b++;
   const indent = lines[a].match(/^\s*/)![0];
   const out = [...lines];
-  out.splice(a, b - a, ...items.map((t, k) => `${indent}${k + 1}. ${t.trim()}`));
+  out.splice(
+    a,
+    b - a,
+    ...items.map((t, k) => `${indent}${k + 1}. ${t.trim()}`),
+  );
   return out;
 }

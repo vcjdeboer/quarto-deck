@@ -219,16 +219,16 @@ export function summarize(d: DeckData, journalTail = 15): ReportResult {
         byRule.set(h.message, [...(byRule.get(h.message) ?? []), h]);
       }
       for (const [msg, hs] of byRule) {
-        md.push(`- hint (${hs.length}): ${msg} — slides ${
-          hs.map(num).join(", ")
-        }`);
+        md.push(
+          `- hint (${hs.length}): ${msg} — slides ${hs.map(num).join(", ")}`,
+        );
       }
       if (suppressed.length) {
         md.push(
           `- suppressed with lint-ignore (${suppressed.length}): ${
-            suppressed.map((x) =>
-              `slide ${num(x)} ${x.id ?? x.rule}`
-            ).join(", ")
+            suppressed.map((x) => `slide ${num(x)} ${x.id ?? x.rule}`).join(
+              ", ",
+            )
           }`,
         );
       }
@@ -250,9 +250,9 @@ export function summarize(d: DeckData, journalTail = 15): ReportResult {
       );
       for (const it of lo.items) {
         md.push(
-          `| ${it.n} | ${
-            esc(it.terms.map((t) => t.term).join(", "))
-          } | ${it.slides.length ? it.slides.join(", ") : "**none**"} |`,
+          `| ${it.n} | ${esc(it.terms.map((t) => t.term).join(", "))} | ${
+            it.slides.length ? it.slides.join(", ") : "**none**"
+          } |`,
         );
       }
       md.push("");

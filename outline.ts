@@ -108,29 +108,125 @@ export type RuleFamily =
  * `narration`) accepts every id in that family.
  */
 export const LINT_RULES = {
-  "two-images": { family: "one-figure", level: "rule", what: "more than one image on a paper slide" },
-  "two-sources": { family: "one-source", level: "rule", what: "more than one .src line" },
-  "builds": { family: "no-builds", level: "rule", what: "click builds on a paper slide (.fragment .step animation steps are fine)" },
+  "two-images": {
+    family: "one-figure",
+    level: "rule",
+    what: "more than one image on a paper slide",
+  },
+  "two-sources": {
+    family: "one-source",
+    level: "rule",
+    what: "more than one .src line",
+  },
+  "builds": {
+    family: "no-builds",
+    level: "rule",
+    what:
+      "click builds on a paper slide (.fragment .step animation steps are fine)",
+  },
   "no-notes": { family: "notes", level: "rule", what: "no speaker notes" },
-  "no-timing": { family: "timing", level: "rule", what: "notes that do not start with ~1.5' / ~45 s" },
-  "src-incomplete": { family: "references", level: "rule", what: "a .src line without author, year, journal and volume:page (e.g. 'Hirschey et al. 2010, Nature 464:121')" },
-  "author-not-bold": { family: "references", level: "rule", what: "the lecturer's name (highlightAuthor) in a .src or Ref: line without bold" },
-  "no-ref": { family: "doi", level: "hint", what: "a paper slide whose notes cite no reference" },
-  "first-person": { family: "narration", level: "rule", what: "we, us, our, let's in shown text" },
-  "occasion": { family: "narration", level: "rule", what: "today, this lecture, the whole talk, next slide" },
-  "scaffolding": { family: "narration", level: "rule", what: "timetable or scaffolding words: slot, rung, before the break" },
-  "open-question": { family: "narration", level: "rule", what: "shown text that opens with Open question:" },
-  "scaffold-title": { family: "narration", level: "rule", what: "a title that opens with Approach:, The control:, Recap, Key figure …" },
-  "topic-title": { family: "titles", level: "hint", what: "a bare topic word as title (Results, Background, Introduction …): state the finding or name what the slide shows" },
-  "conclusion-table": { family: "conclusions", level: "rule", what: "a conclusions / take-home slide written as a table: use a few bullets tied to the slides" },
-  "conclusion-long": { family: "conclusions", level: "hint", what: "a conclusions slide with more than five bullets" },
-  "caveat-line": { family: "caveats", level: "hint", what: "shown text that opens with Caveat:, Limitation:, Note: — keep it only if the talk raises it" },
-  "spoken-line": { family: "narration", level: "hint", what: "a free-standing sentence of six words or more beside a figure" },
-  "svg-blank-line": { family: "svg", level: "rule", what: "a blank line inside an inline <svg>: Quarto ends the HTML block there and the slide breaks" },
-  "svg-small-text": { family: "svg", level: "hint", what: "SVG text with font-size below 16" },
-  "lo-mismatch": { family: "outcomes", level: "rule", what: "opening and closing learning outcomes differ" },
-  "lo-uncovered": { family: "outcomes", level: "hint", what: "a learning outcome whose key terms appear on no slide" },
-  "unknown-ignore": { family: "lint", level: "hint", what: "lint-ignore names an id that does not exist" },
+  "no-timing": {
+    family: "timing",
+    level: "rule",
+    what: "notes that do not start with ~1.5' / ~45 s",
+  },
+  "src-incomplete": {
+    family: "references",
+    level: "rule",
+    what:
+      "a .src line without author, year, journal and volume:page (e.g. 'Hirschey et al. 2010, Nature 464:121')",
+  },
+  "author-not-bold": {
+    family: "references",
+    level: "rule",
+    what:
+      "the lecturer's name (highlightAuthor) in a .src or Ref: line without bold",
+  },
+  "no-ref": {
+    family: "doi",
+    level: "hint",
+    what: "a paper slide whose notes cite no reference",
+  },
+  "first-person": {
+    family: "narration",
+    level: "rule",
+    what: "we, us, our, let's in shown text",
+  },
+  "occasion": {
+    family: "narration",
+    level: "rule",
+    what: "today, this lecture, the whole talk, next slide",
+  },
+  "scaffolding": {
+    family: "narration",
+    level: "rule",
+    what: "timetable or scaffolding words: slot, rung, before the break",
+  },
+  "open-question": {
+    family: "narration",
+    level: "rule",
+    what: "shown text that opens with Open question:",
+  },
+  "scaffold-title": {
+    family: "narration",
+    level: "rule",
+    what:
+      "a title that opens with Approach:, The control:, Recap, Key figure …",
+  },
+  "topic-title": {
+    family: "titles",
+    level: "hint",
+    what:
+      "a bare topic word as title (Results, Background, Introduction …): state the finding or name what the slide shows",
+  },
+  "conclusion-table": {
+    family: "conclusions",
+    level: "rule",
+    what:
+      "a conclusions / take-home slide written as a table: use a few bullets tied to the slides",
+  },
+  "conclusion-long": {
+    family: "conclusions",
+    level: "hint",
+    what: "a conclusions slide with more than five bullets",
+  },
+  "caveat-line": {
+    family: "caveats",
+    level: "hint",
+    what:
+      "shown text that opens with Caveat:, Limitation:, Note: — keep it only if the talk raises it",
+  },
+  "spoken-line": {
+    family: "narration",
+    level: "hint",
+    what: "a free-standing sentence of six words or more beside a figure",
+  },
+  "svg-blank-line": {
+    family: "svg",
+    level: "rule",
+    what:
+      "a blank line inside an inline <svg>: Quarto ends the HTML block there and the slide breaks",
+  },
+  "svg-small-text": {
+    family: "svg",
+    level: "hint",
+    what: "SVG text with font-size below 16",
+  },
+  "lo-mismatch": {
+    family: "outcomes",
+    level: "rule",
+    what: "opening and closing learning outcomes differ",
+  },
+  "lo-uncovered": {
+    family: "outcomes",
+    level: "hint",
+    what: "a learning outcome whose key terms appear on no slide",
+  },
+  "unknown-ignore": {
+    family: "lint",
+    level: "hint",
+    what: "lint-ignore names an id that does not exist",
+  },
 } as const satisfies Record<
   string,
   { family: RuleFamily; level: "rule" | "hint"; what: string }
@@ -405,7 +501,6 @@ export function parseQmd(lines: SourceLine[]): {
   return { slides, title, orphanChecks };
 }
 
-
 /**
  * Sentences the audience actually reads on a slide: the title, prose written in
  * the body, and the contents of `<text>` elements in an inline SVG diagram.
@@ -514,9 +609,11 @@ export function svgFindings(s: SlideInfo): {
  * a timing. Returns every finding; `lintDeck` applies `lint-ignore`.
  */
 /** A source line naming unpublished data, a photo credit or a website. */
-const SRC_CREDIT = /unpublished|personal communication|courtesy|photo|times|guardian|newspaper|magazine|news\b|©|https?:\/\/|www\./i;
+const SRC_CREDIT =
+  /unpublished|personal communication|courtesy|photo|times|guardian|newspaper|magazine|news\b|©|https?:\/\/|www\./i;
 /** Author(s) + year, then journal + volume:page: "… 2010, Nature 464:121". */
-const SRC_COMPLETE = /\b(1[89]|20)\d{2}\b[^,]*,\s*[A-Za-z][^,]*?\s\d+:\s?[A-Za-z]?\d+/;
+const SRC_COMPLETE =
+  /\b(1[89]|20)\d{2}\b[^,]*,\s*[A-Za-z][^,]*?\s\d+:\s?[A-Za-z]?\d+/;
 
 /** Reference findings: incomplete `.src` lines, the lecturer not in bold. */
 export function referenceIssues(
@@ -537,18 +634,26 @@ export function referenceIssues(
     });
   const name = highlightAuthor?.trim();
   const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const named = name ? new RegExp(`(^|[^\\p{L}*])${esc(name)}(?![\\p{L}*])`, "u") : null;
+  const named = name
+    ? new RegExp(`(^|[^\\p{L}*])${esc(name)}(?![\\p{L}*])`, "u")
+    : null;
   for (const s of slides) {
     if (s.hidden) continue;
     for (const src of s.src) {
-      if (!SRC_CREDIT.test(src) && !SRC_COMPLETE.test(src.replace(/\*\*/g, ""))) {
+      if (
+        !SRC_CREDIT.test(src) && !SRC_COMPLETE.test(src.replace(/\*\*/g, ""))
+      ) {
         add(s, "src-incomplete", `"${src}" lacks year, journal or volume:page`);
       }
     }
     if (named) {
       for (const l of [...s.src, ...s.refLines]) {
         if (named.test(l)) {
-          add(s, "author-not-bold", `${name} is not bold in "${l.slice(0, 90)}"`);
+          add(
+            s,
+            "author-not-bold",
+            `${name} is not bold in "${l.slice(0, 90)}"`,
+          );
         }
       }
     }
@@ -609,7 +714,11 @@ export function styleIssues(slides: SlideInfo[]): StyleIssue[] {
       );
     }
     if (s.src.length > 1) {
-      add(s, "two-sources", `${s.src.length} source lines; one paper per slide`);
+      add(
+        s,
+        "two-sources",
+        `${s.src.length} source lines; one paper per slide`,
+      );
     }
     const builds = s.fragments - s.steps;
     if (paper && builds > 0) {
@@ -621,10 +730,18 @@ export function styleIssues(slides: SlideInfo[]): StyleIssue[] {
     }
     if (!s.hasNotes) add(s, "no-notes", "no speaker notes");
     else if (s.minutes === null) {
-      add(s, "no-timing", "notes do not start with a timing like ~1.5' or ~45 s");
+      add(
+        s,
+        "no-timing",
+        "notes do not start with a timing like ~1.5' or ~45 s",
+      );
     }
     if (paper && s.hasNotes && !s.hasRef) {
-      add(s, "no-ref", "paper slide whose notes cite no reference (Ref: … doi:…)");
+      add(
+        s,
+        "no-ref",
+        "paper slide whose notes cite no reference (Ref: … doi:…)",
+      );
     }
     if (SCAFFOLD_TITLE.test(s.title)) {
       add(
@@ -719,8 +836,25 @@ export function numberedItems(
 }
 
 const STOP = new Set([
-  "the", "a", "an", "of", "in", "on", "to", "and", "or", "for", "with", "by",
-  "from", "its", "it", "is", "are", "as", "at",
+  "the",
+  "a",
+  "an",
+  "of",
+  "in",
+  "on",
+  "to",
+  "and",
+  "or",
+  "for",
+  "with",
+  "by",
+  "from",
+  "its",
+  "it",
+  "is",
+  "are",
+  "as",
+  "at",
 ]);
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -756,14 +890,16 @@ export function termParts(term: string): string[] {
  */
 export function learningOutcomes(slides: SlideInfo[]): OutcomeReport | null {
   const visible = slides.filter((s) => !s.hidden);
-  const opening = visible.find((s) =>
-    OPENING_LO.test(s.title) || s.divClasses.includes("lo") ||
-    s.classes.includes("lo")
-  ) ?? null;
-  const closing = visible.find((s) =>
-    s !== opening && (CLOSING_LO.test(s.title) ||
-      s.divClasses.includes("lo-done") || s.classes.includes("lo-done"))
-  ) ?? null;
+  const opening =
+    visible.find((s) =>
+      OPENING_LO.test(s.title) || s.divClasses.includes("lo") ||
+      s.classes.includes("lo")
+    ) ?? null;
+  const closing =
+    visible.find((s) =>
+      s !== opening && (CLOSING_LO.test(s.title) ||
+        s.divClasses.includes("lo-done") || s.classes.includes("lo-done"))
+    ) ?? null;
   if (!opening && !closing) return null;
   const open = opening ? numberedItems(opening) : [];
   const close = closing ? numberedItems(closing) : [];
@@ -1015,7 +1151,9 @@ export function cutView(
         slide: g.slide,
         slides: g.s.length,
         minutes,
-        share: slotMinutes ? Math.round(100 * minutes / slotMinutes) / 100 : null,
+        share: slotMinutes
+          ? Math.round(100 * minutes / slotMinutes) / 100
+          : null,
         longest: g.s
           .filter((s) => (s.minutes ?? 0) > 0)
           .sort((a, b) => (b.minutes ?? 0) - (a.minutes ?? 0) || a.n - b.n)
@@ -1042,7 +1180,9 @@ export function cutLines(c: CutView): string[] {
     );
   } else out.push(`${c.minutesPlanned} min planned (no slot set)`);
   for (const s of c.sections) {
-    const share = s.share === null ? "" : `, ${Math.round(s.share * 100)}% of slot`;
+    const share = s.share === null
+      ? ""
+      : `, ${Math.round(s.share * 100)}% of slot`;
     const top = s.longest.map((x) => `${x.minutes}' "${x.title}"`).join("; ");
     out.push(
       `${s.title}: ${s.slides} slides, ${s.minutes} min${share}${
@@ -1156,7 +1296,8 @@ export function frontMatterFiles(
   if (end < 0) return [];
   const out: Array<{ key: string; path: string; line: number }> = [];
   const unq = (v: string) => v.trim().replace(/^["']|["']$/g, "").trim();
-  const isFile = (v: string) => /\.[A-Za-z0-9]{1,5}$/.test(v) && !/[<>{}]/.test(v);
+  const isFile = (v: string) =>
+    /\.[A-Za-z0-9]{1,5}$/.test(v) && !/[<>{}]/.test(v);
   const add = (key: string, v: string, line: number) => {
     const p = unq(v);
     if (p && isFile(p)) out.push({ key, path: p, line });
@@ -1167,7 +1308,9 @@ export function frontMatterFiles(
     const [, indent, key, rest] = m;
     const v = rest.replace(/\s+#.*$/, "").trim();
     if (v.startsWith("[")) {
-      for (const it of v.replace(/^\[|\]$/g, "").split(",")) add(key, it, i + 1);
+      for (const it of v.replace(/^\[|\]$/g, "").split(",")) {
+        add(key, it, i + 1);
+      }
     } else if (v) {
       add(key, v, i + 1);
     } else {

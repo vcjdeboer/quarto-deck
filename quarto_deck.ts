@@ -47,13 +47,13 @@ import { refreshRefs, replaceNumberedList } from "./refs.ts";
 import { slideSpan, snapshot } from "./edit.ts";
 import {
   citationFromMeta,
-  ensureSource,
   drawGrid,
   encodePng,
-  findPaper,
+  ensureSource,
   type FigCtx,
   figureCrop,
   figureFromImage,
+  findPaper,
   type JournalFn,
   referenceFromMeta,
   registerSource,
@@ -684,7 +684,12 @@ export const model = {
         ctx: DeckContext,
       ): Promise<{ dataHandles: Handle[] }> => {
         const g = ctx.globalArgs;
-        const o = outlineDeck(g.dir, g.main, g.slotMinutes ?? null, g.highlightAuthor);
+        const o = outlineDeck(
+          g.dir,
+          g.main,
+          g.slotMinutes ?? null,
+          g.highlightAuthor,
+        );
         ctx.logger.info(outlineSummary(o));
         for (const m of o.missingIncludes) {
           ctx.logger.info("missing file: {m}", { m });
@@ -715,7 +720,12 @@ export const model = {
         ctx: DeckContext,
       ): Promise<{ dataHandles: Handle[] }> => {
         const g = ctx.globalArgs;
-        const o = outlineDeck(g.dir, g.main, g.slotMinutes ?? null, g.highlightAuthor);
+        const o = outlineDeck(
+          g.dir,
+          g.main,
+          g.slotMinutes ?? null,
+          g.highlightAuthor,
+        );
         const inputs = renderInputs(g.dir, o);
         const inputHash = await hashInputs(g.dir, inputs);
         const html = htmlPath(g.dir, g.main);
@@ -1328,8 +1338,13 @@ export const model = {
         }
         // bottom-up within a file
         for (const s of [...targets].sort((a, b) => b.line - a.line)) {
-          const next = o.slides.filter((x) => x.file === s.file && x.line > s.line)
-            .reduce<number | null>((m, x) => m === null || x.line < m ? x.line : m, null);
+          const next = o.slides.filter((x) =>
+            x.file === s.file && x.line > s.line
+          )
+            .reduce<number | null>(
+              (m, x) => m === null || x.line < m ? x.line : m,
+              null,
+            );
           const span = slideSpan(text[s.file], s.line, next);
           text[s.file] = replaceNumberedList(
             text[s.file],
@@ -1338,7 +1353,12 @@ export const model = {
             args.items,
           );
         }
-        const b = await snapshot(g.dir, files, "outcomes_set", "before outcomes_set");
+        const b = await snapshot(
+          g.dir,
+          files,
+          "outcomes_set",
+          "before outcomes_set",
+        );
         for (const f of files) {
           await Deno.writeTextFile(`${g.dir}/${f}`, text[f].join("\n"));
         }
@@ -1347,7 +1367,12 @@ export const model = {
         );
         ctx.logger.info(
           "{n} outcomes on {k} slide(s); lists match: {m}; snapshot {b}",
-          { n: args.items.length, k: targets.length, m: after?.match ?? "-", b: b.id },
+          {
+            n: args.items.length,
+            k: targets.length,
+            m: after?.match ?? "-",
+            b: b.id,
+          },
         );
         const j = await journal(ctx, {
           kind: "change",
@@ -1376,7 +1401,13 @@ export const model = {
           text[f] = (await Deno.readTextFile(`${g.dir}/${f}`)).split("\n");
         }
         const changed: Array<
-          { file: string; line: number; slide: string; from: string; to: string }
+          {
+            file: string;
+            line: number;
+            slide: string;
+            from: string;
+            to: string;
+          }
         > = [];
         const skipped: string[] = [];
         // bottom-up per file, so line numbers above stay valid
@@ -1408,10 +1439,22 @@ export const model = {
             continue;
           }
           const lines = text[s.file];
-          const next = o.slides.filter((x) => x.file === s.file && x.line > s.line)
-            .reduce<number | null>((m, x) => m === null || x.line < m ? x.line : m, null);
+          const next = o.slides.filter((x) =>
+            x.file === s.file && x.line > s.line
+          )
+            .reduce<number | null>(
+              (m, x) => m === null || x.line < m ? x.line : m,
+              null,
+            );
           const span = slideSpan(lines, s.line, next);
-          const r = refreshRefs(lines, span.start, span.end, base, ref, dois[0]);
+          const r = refreshRefs(
+            lines,
+            span.start,
+            span.end,
+            base,
+            ref,
+            dois[0],
+          );
           text[s.file] = r.lines;
           for (const c of r.changes) {
             changed.push({
@@ -1423,27 +1466,43 @@ export const model = {
             });
           }
         }
-        changed.sort((a, b) => a.file === b.file ? a.line - b.line : a.file < b.file ? -1 : 1);
+        changed.sort((a, b) =>
+          a.file === b.file ? a.line - b.line : a.file < b.file ? -1 : 1
+        );
         for (const c of changed) {
-          ctx.logger.info("{file}:{line} \"{slide}\"\n  - {from}\n  + {to}", { ...c });
+          ctx.logger.info('{file}:{line} "{slide}"\n  - {from}\n  + {to}', {
+            ...c,
+          });
         }
         for (const s of skipped) ctx.logger.info("skipped {s}", { s });
         const files = [...new Set(changed.map((c) => c.file))];
         let backup: string | null = null;
         if (args.apply && files.length) {
-          const b = await snapshot(g.dir, files, "refs_update", "before refs_update");
+          const b = await snapshot(
+            g.dir,
+            files,
+            "refs_update",
+            "before refs_update",
+          );
           backup = b.id;
           for (const f of files) {
             await Deno.writeTextFile(`${g.dir}/${f}`, text[f].join("\n"));
           }
         }
-        ctx.logger.info("{n} reference lines {how} in {f} files; {k} slides skipped{b}", {
-          n: changed.length,
-          how: args.apply ? "rewritten" : "would change (apply=true writes them)",
-          f: files.length,
-          k: skipped.length,
-          b: backup ? `; snapshot ${backup} (restore id=${backup} undoes it)` : "",
-        });
+        ctx.logger.info(
+          "{n} reference lines {how} in {f} files; {k} slides skipped{b}",
+          {
+            n: changed.length,
+            how: args.apply
+              ? "rewritten"
+              : "would change (apply=true writes them)",
+            f: files.length,
+            k: skipped.length,
+            b: backup
+              ? `; snapshot ${backup} (restore id=${backup} undoes it)`
+              : "",
+          },
+        );
         const h = await ctx.writeResource("refsUpdate", "refs-update", {
           applied: args.apply,
           changes: changed,
@@ -1456,7 +1515,10 @@ export const model = {
           handles.push(
             await journal(ctx, {
               kind: "change",
-              text: `refs_update: ${changed.length} reference lines rebuilt from paper metadata in ${files.join(", ")}`,
+              text:
+                `refs_update: ${changed.length} reference lines rebuilt from paper metadata in ${
+                  files.join(", ")
+                }`,
               ref: `backup ${backup}`,
             }),
           );
@@ -1580,7 +1642,12 @@ export const model = {
             const meta = src?.meta as Parameters<typeof citationFromMeta>[0];
             const cit = meta ? citationFromMeta(meta, g.highlightAuthor) : null;
             if (cit) {
-              for (const [arg, v] of [["citation", args.citation], ["reference", args.reference]]) {
+              for (
+                const [arg, v] of [["citation", args.citation], [
+                  "reference",
+                  args.reference,
+                ]]
+              ) {
                 if (v) {
                   ctx.logger.info(
                     "{arg} ignored: built from the paper's metadata instead",
