@@ -5,7 +5,7 @@
  * animation), and render slides to PNG through Keynote (macOS).
  * @module
  */
-import JSZip from "npm:jszip@3.10.1";
+import { ZipArchive as JSZip } from "./zip.ts";
 
 /** One slide of a pptx. */
 export interface PptxSlide {

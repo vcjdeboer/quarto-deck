@@ -6,7 +6,9 @@ import { warningsFromLog } from "./render.ts";
 
 Deno.test("model exposes the deck methods", () => {
   assertEquals(model.type, "@vcjdeboer/quarto-deck/deck");
-  for (const m of Object.keys(model.methods) as Array<keyof typeof model.methods>) {
+  for (
+    const m of Object.keys(model.methods) as Array<keyof typeof model.methods>
+  ) {
     assertEquals(typeof model.methods[m].execute, "function");
   }
 });
@@ -46,5 +48,8 @@ Deno.test("quartzFilterPlist carries the settings", () => {
 });
 
 Deno.test("warningsFromLog keeps warning lines only", () => {
-  assertEquals(warningsFromLog("ok\nWARN: x\nfine\nWarning: y"), ["WARN: x", "Warning: y"]);
+  assertEquals(warningsFromLog("ok\nWARN: x\nfine\nWarning: y"), [
+    "WARN: x",
+    "Warning: y",
+  ]);
 });

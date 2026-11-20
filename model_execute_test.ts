@@ -1,4 +1,8 @@
-import { assertEquals, assertRejects, assertStringIncludes } from "jsr:@std/assert@1";
+import {
+  assertEquals,
+  assertRejects,
+  assertStringIncludes,
+} from "jsr:@std/assert@1";
 import { hasLine, model } from "./quarto_deck.ts";
 
 /** A minimal method context backed by a map, enough for outline/slide_add/journal. */
@@ -19,7 +23,11 @@ function fakeCtx(dir: string) {
         assetsDir: "assets",
       },
       logger: { info: (m: string) => logs.push(m) },
-      writeResource: (_spec: string, name: string, data: Record<string, unknown>) => {
+      writeResource: (
+        _spec: string,
+        name: string,
+        data: Record<string, unknown>,
+      ) => {
         store.set(name, structuredClone(data));
         return Promise.resolve({ name });
       },
@@ -42,7 +50,8 @@ async function tempDeck(): Promise<string> {
 }
 
 // deno-lint-ignore no-explicit-any
-const run = (m: string, args: unknown, ctx: unknown) => (model.methods as any)[m].execute(args, ctx);
+const run = (m: string, args: unknown, ctx: unknown) =>
+  (model.methods as any)[m].execute(args, ctx);
 
 Deno.test("outline execute writes the outline and logs entry + result", async () => {
   const dir = await tempDeck();
@@ -72,7 +81,11 @@ Deno.test("slide_add writes once, journals, and refuses a duplicate", async () =
   const text = await Deno.readTextFile(`${dir}/part.qmd`);
   assertStringIncludes(text, "## Cells need glycolysis");
   assertEquals((f.store.get("journal")!.entries as unknown[]).length, 1);
-  await assertRejects(() => run("slide_add", args, f.ctx), Error, "already has");
+  await assertRejects(
+    () => run("slide_add", args, f.ctx),
+    Error,
+    "already has",
+  );
   assertEquals(await Deno.readTextFile(`${dir}/part.qmd`), text);
   await Deno.remove(dir, { recursive: true });
 });
@@ -81,7 +94,14 @@ Deno.test("slide_add paper without figure or image fails before writing", async 
   const dir = await tempDeck();
   const f = fakeCtx(dir);
   await assertRejects(
-    () => run("slide_add", { kind: "paper", file: "part.qmd", title: "X", minutes: 1, notes: "" }, f.ctx),
+    () =>
+      run("slide_add", {
+        kind: "paper",
+        file: "part.qmd",
+        title: "X",
+        minutes: 1,
+        notes: "",
+      }, f.ctx),
     Error,
     "needs figure",
   );
@@ -91,7 +111,11 @@ Deno.test("slide_add paper without figure or image fails before writing", async 
 
 Deno.test("source_find without a registered source fails clearly", async () => {
   const f = fakeCtx("/nonexistent");
-  await assertRejects(() => run("source_find", { key: "x", query: "q" }, f.ctx), Error, "not registered");
+  await assertRejects(
+    () => run("source_find", { key: "x", query: "q" }, f.ctx),
+    Error,
+    "not registered",
+  );
 });
 
 Deno.test("hasLine ignores edge spaces only", () => {

@@ -19,7 +19,7 @@
  * The text manipulation is pure and exported for tests; the IO sits below it.
  * @module
  */
-import { z } from "npm:zod@4";
+import { z } from "npm:zod@4.6.7";
 import {
   audienceText,
   type DeckOutline,

@@ -8,7 +8,7 @@
  * result is versioned swamp data.
  * @module
  */
-import { z } from "npm:zod@4";
+import { z } from "npm:zod@4.6.7";
 import {
   cutLines,
   type DeckOutline,
@@ -271,7 +271,7 @@ const FigureSchema = z.object({
   pxPerPt: z.number().optional().describe(
     "dpi/72: pixel (px,py) in the PNG is point (boxPt.x + px/pxPerPt, boxPt.y + py/pxPerPt)",
   ),
-  anchor: z.record(z.string(), z.unknown()).optional(),
+  anchor: z.lazy(() => AnchorSchema).optional(),
   anchorEdges: z.record(z.string(), z.string()).optional(),
   path: z.string(),
   widthPx: z.number(),
@@ -439,7 +439,9 @@ async function journal(
   ctx: DeckContext,
   ...entries: Array<Omit<JournalEntry, "at">>
 ): Promise<Handle> {
-  const cur = await ctx.readResource?.("journal").catch(() => null) as
+  // no journal yet reads as null; any other failure must surface, or the next
+  // write would store only the new entries and drop the history
+  const cur = await ctx.readResource?.("journal") as
     | { entries: JournalEntry[] }
     | null;
   const at = new Date().toISOString();

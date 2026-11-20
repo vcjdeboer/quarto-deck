@@ -16,6 +16,10 @@ Deno.test("isDeckServer matches only this folder's http.server on the port", () 
   assertEquals(isDeckServer(cmd, "/d/other", 8765), false);
   assertEquals(isDeckServer(cmd, "/d/deck", 8766), false);
   assertEquals(isDeckServer("node server.js 8765", "/d/deck", 8765), false);
+  const spaced =
+    "python3 -m http.server 8765 --bind 127.0.0.1 --directory /Users/a/My Decks/talk";
+  assertEquals(isDeckServer(spaced, "/Users/a/My Decks/talk", 8765), true);
+  assertEquals(isDeckServer(spaced, "/Users/a/My", 8765), false);
 });
 
 Deno.test("fileUrl encodes each path segment", () => {

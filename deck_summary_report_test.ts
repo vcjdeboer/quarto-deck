@@ -8,7 +8,9 @@ function repo(items: Record<string, Array<[number, string]>>): RepoLike {
   return {
     findAllForModel: () =>
       Promise.resolve(
-        Object.entries(items).flatMap(([name, vs]) => vs.map(([version]) => ({ name, version }))),
+        Object.entries(items).flatMap(([name, vs]) =>
+          vs.map(([version]) => ({ name, version }))
+        ),
       ),
     getContent: (_t, _m, name, version) => {
       const hit = items[name]?.find(([v]) => v === version);
@@ -43,7 +45,13 @@ Deno.test("summarize reports budget, CHECKs, provenance and journal", () => {
       doi: "10.1/x",
     }],
     sources: [],
-    journal: { entries: [{ at: "2026-10-22T10:00:00Z", kind: "decision", text: "cut Pasteur" }] },
+    journal: {
+      entries: [{
+        at: "2026-10-22T10:00:00Z",
+        kind: "decision",
+        text: "cut Pasteur",
+      }],
+    },
   });
   assertStringIncludes(r.markdown, "**1.0 min over**");
   assertStringIncludes(r.markdown, "credit line");
@@ -63,7 +71,10 @@ Deno.test("report reads the latest version of each item", async () => {
     modelType: "@vcjdeboer/quarto-deck/deck",
     modelId: "m",
     dataRepository: repo({
-      outline: [[1, JSON.stringify({ ...OUTLINE, minutesPlanned: 50 })], [2, JSON.stringify(OUTLINE)]],
+      outline: [[1, JSON.stringify({ ...OUTLINE, minutesPlanned: 50 })], [
+        2,
+        JSON.stringify(OUTLINE),
+      ]],
     }),
   });
   assertStringIncludes(r.markdown, "36 min planned");

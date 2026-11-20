@@ -13,7 +13,7 @@
  * specs at the bottom are spread into the model in `quarto_deck.ts`.
  * @module
  */
-import { z } from "npm:zod@4";
+import { z } from "npm:zod@4.6.7";
 import {
   audienceText,
   expandIncludes,

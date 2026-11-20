@@ -175,7 +175,9 @@ Deno.test("rows keep long heading titles whole; the printed table clips them", (
   );
   assertEquals(r[0].title, `${long} (deck)`);
   assertEquals(r[1].title, long); // same text as the HTML and export_pdf titles
-  const line = formatSlideMap(r).split("\n").find((l) => l.includes("main.qmd:5"))!;
+  const line = formatSlideMap(r).split("\n").find((l) =>
+    l.includes("main.qmd:5")
+  )!;
   assertEquals(line.endsWith("…"), true);
 });
 

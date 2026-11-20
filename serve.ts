@@ -5,7 +5,7 @@
  * otherwise starts a detached `python3 -m http.server` bound to 127.0.0.1.
  * @module
  */
-import { z } from "npm:zod@4";
+import { z } from "npm:zod@4.6.7";
 
 /** Stored as the `serve` resource. */
 export const ServeInfoSchema = z.object({
@@ -189,15 +189,16 @@ export function isDeckServer(
   dir: string,
   port: number,
 ): boolean {
-  const argv = command.trim().split(/\s+/);
-  const at = (flag: string) => {
-    const i = argv.indexOf(flag);
-    return i >= 0 ? argv[i + 1] : undefined;
-  };
+  // `ps` prints the argv joined by spaces, so the folder (the last argument
+  // serveDeck passes) is everything after "--directory ", spaces included
+  const line = command.trim();
+  const argv = line.split(/\s+/);
   const m = argv.indexOf("-m");
+  const d = line.indexOf(" --directory ");
+  const served = d >= 0 ? line.slice(d + " --directory ".length).trim() : "";
   return m >= 0 && argv[m + 1] === "http.server" &&
     argv[m + 2] === String(port) &&
-    at("--directory")?.replace(/\/$/, "") === dir.replace(/\/$/, "");
+    served.replace(/\/$/, "") === dir.replace(/\/$/, "");
 }
 
 async function output(cmd: string, args: string[]): Promise<string> {

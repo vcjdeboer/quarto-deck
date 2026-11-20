@@ -1558,10 +1558,12 @@ export async function figureCrop(
     drawGrid(img, args.previewDpi);
     drawRect(img, pixelCrop(boxPt, args.previewDpi), [230, 0, 0], 3);
     const png = await encodePng(img);
+    // one file per figure label in the deck folder, overwritten on each
+    // preview (a temp dir per call was never cleaned up)
+    const previews = `${ctx.globalArgs.dir}/.deck_previews`;
     const out = args.outPng ??
-      `${await Deno.makeTempDir({
-        prefix: "quarto-deck-preview-",
-      })}/${rec.key}_p${args.page}_${label}.png`;
+      `${previews}/${rec.key}_p${args.page}_${label}.png`;
+    if (!args.outPng) await Deno.mkdir(previews, { recursive: true });
     await Deno.writeFile(out, png);
     ctx.logger.info("preview (red = crop box{t}): {out}", {
       out,

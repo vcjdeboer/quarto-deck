@@ -36,7 +36,10 @@ Deno.test("parseHeading splits title, classes and hidden", () => {
 });
 
 Deno.test("cleanDoi keeps balanced parentheses, drops trailing punctuation", () => {
-  assertEquals(cleanDoi("10.1016/S0021-9258(18)70011-2"), "10.1016/S0021-9258(18)70011-2");
+  assertEquals(
+    cleanDoi("10.1016/S0021-9258(18)70011-2"),
+    "10.1016/S0021-9258(18)70011-2",
+  );
   assertEquals(cleanDoi("10.1038/nrc3038."), "10.1038/nrc3038");
   assertEquals(cleanDoi("10.1038/nrc3038)."), "10.1038/nrc3038");
 });
@@ -89,7 +92,12 @@ Big words
 Deno.test("parseQmd finds slides, notes, timing, src, DOIs and CHECKs", () => {
   const p = parseQmd(src(DECK));
   assertEquals(p.title, "Demo");
-  assertEquals(p.slides.map((s) => s.title), ["Part one", "Paper slide", "Hidden", ""]);
+  assertEquals(p.slides.map((s) => s.title), [
+    "Part one",
+    "Paper slide",
+    "Hidden",
+    "",
+  ]);
   const paper = p.slides[1];
   assertEquals(paper.minutes, 1.5);
   assertEquals(paper.hasNotes, true);
@@ -117,7 +125,8 @@ Deno.test("outlineFromSlides budgets visible slides and flags missing images", (
 });
 
 Deno.test("narration rule flags lecturer talk on a slide", () => {
-  const { slides } = parseQmd(src(`## The ten steps of glycolysis, and the two we use today
+  const { slides } = parseQmd(
+    src(`## The ten steps of glycolysis, and the two we use today
 
 <svg class="diagram" viewBox="0 0 10 10">
   <text x="1" y="1">genome instability</text>
@@ -129,7 +138,8 @@ Deno.test("narration rule flags lecturer talk on a slide", () => {
 ::: notes
 ~2'. Ref: doi:10.1016/j.arr.2024.102616
 :::
-`));
+`),
+  );
   const found = styleIssues(slides).filter((i) => i.rule === "narration");
   const rules = found.filter((i) => i.level === "rule");
   // both the title and the SVG line are caught
@@ -144,7 +154,10 @@ Deno.test("narration rule flags lecturer talk on a slide", () => {
 
 Deno.test("narration rule flags scaffolding titles and timetable words", () => {
   const cases: Array<[string, string]> = [
-    ["## Approach: one bat genome compared with eight mammals", "is scaffolding"],
+    [
+      "## Approach: one bat genome compared with eight mammals",
+      "is scaffolding",
+    ],
     ["## Rung 1, yeast: PFK1 sets the glycolytic rate", "is scaffolding"],
     ["## The control: block PFK1 and lactate output returns", "is scaffolding"],
   ];
@@ -166,7 +179,10 @@ Deno.test("titles: a finding or a noun phrase passes, a bare topic word is a hin
   assertEquals(ids("## Background:"), ["topic-title:hint"]);
   assertEquals(ids("## Key results"), ["topic-title:hint"]);
   assertEquals(ids("## PKM2 knockout mice in the cold"), []);
-  assertEquals(ids("## Fasted PKM2 knockouts cannot hold their temperature"), []);
+  assertEquals(
+    ids("## Fasted PKM2 knockouts cannot hold their temperature"),
+    [],
+  );
   assertEquals(ids("## Results of the knockout screen"), []);
 });
 
@@ -265,7 +281,10 @@ Deno.test("outlineDeck reports a missing include-in-header file (Quarto would pa
   const dir = await Deno.makeTempDir();
   try {
     await Deno.mkdir(`${dir}/theme`);
-    await Deno.writeTextFile(`${dir}/theme/brand.scss`, "/*-- scss:defaults --*/");
+    await Deno.writeTextFile(
+      `${dir}/theme/brand.scss`,
+      "/*-- scss:defaults --*/",
+    );
     await Deno.writeTextFile(
       `${dir}/main.qmd`,
       "---\nformat:\n  revealjs:\n    theme: [default, theme/brand.scss]\n    include-in-header: theme/extras.html\n---\n\n## A\n",

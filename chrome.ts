@@ -36,6 +36,9 @@ function b64ToBytes(b64: string): Uint8Array {
 }
 
 /** Launch headless Chrome with a fresh profile and attach to its page. */
+/** Longest wait for one DevTools call (page loads and screenshots included). */
+const CALL_TIMEOUT_MS = 120_000;
+
 export async function launchChrome(
   chrome: string = MAC_CHROME,
   size: { width: number; height: number } = { width: 1280, height: 720 },
@@ -96,12 +99,24 @@ export async function launchChrome(
     ws.onerror = () => rej(new Error("DevTools websocket failed"));
   }).catch((e) => abort(e.message));
   let nextId = 0;
-  const pending = new Map<number, (m: Record<string, unknown>) => void>();
+  const pending = new Map<
+    number,
+    { done: (m: Record<string, unknown>) => void; fail: (e: Error) => void }
+  >();
   const waiters: Array<{ method: string; fn: () => void }> = [];
+  // a crashed Chrome or a dropped socket must not leave calls waiting forever
+  let closed: Error | null = null;
+  const failAll = (why: string) => {
+    closed ??= new Error(`DevTools connection lost: ${why}`);
+    for (const p of pending.values()) p.fail(closed);
+    pending.clear();
+  };
+  ws.onclose = () => failAll("socket closed");
+  ws.onerror = () => failAll("socket error");
   ws.onmessage = (e) => {
     const m = JSON.parse(e.data);
     if (m.id && pending.has(m.id)) {
-      pending.get(m.id)!(m);
+      pending.get(m.id)!.done(m);
       pending.delete(m.id);
     } else if (m.method) {
       for (let i = waiters.length - 1; i >= 0; i--) {
@@ -111,10 +126,26 @@ export async function launchChrome(
   };
   const send = (method: string, params: Record<string, unknown> = {}) =>
     new Promise<Record<string, unknown>>((res, rej) => {
+      if (closed) return rej(closed);
       const id = ++nextId;
-      pending.set(id, (m) => {
-        if (m.error) rej(new Error(`${method}: ${JSON.stringify(m.error)}`));
-        else res((m.result ?? {}) as Record<string, unknown>);
+      const timer = setTimeout(() => {
+        pending.delete(id);
+        rej(
+          new Error(
+            `${method}: no answer from Chrome in ${CALL_TIMEOUT_MS / 1000} s`,
+          ),
+        );
+      }, CALL_TIMEOUT_MS);
+      pending.set(id, {
+        done: (m) => {
+          clearTimeout(timer);
+          if (m.error) rej(new Error(`${method}: ${JSON.stringify(m.error)}`));
+          else res((m.result ?? {}) as Record<string, unknown>);
+        },
+        fail: (e) => {
+          clearTimeout(timer);
+          rej(e);
+        },
       });
       ws.send(JSON.stringify({ id, method, params }));
     });

@@ -4,7 +4,9 @@ import { refreshRefs, replaceNumberedList, srcDetail } from "./refs.ts";
 Deno.test("srcDetail keeps the figure part of an old source line", () => {
   assertEquals(srcDetail("Hirschey et al., Nature 2010, Fig. 3c"), ", Fig. 3c");
   assertEquals(
-    srcDetail("Yuan et al. 2024, iScience 27:109991, Fig. 2A,B. Skin fibroblasts"),
+    srcDetail(
+      "Yuan et al. 2024, iScience 27:109991, Fig. 2A,B. Skin fibroblasts",
+    ),
     ", Fig. 2A,B. Skin fibroblasts",
   );
   assertEquals(srcDetail("Du et al., Science 2011. Table 1"), ", Table 1");
@@ -48,9 +50,27 @@ Deno.test("refreshRefs rewrites .src and a wrapped Ref: line, keeps CHECK", () =
 });
 
 Deno.test("replaceNumberedList swaps the list, keeps the rest", () => {
-  const lines = ["## Learning outcomes", "", "1. Old one", "   wrapped", "2. Old two", "", "::: notes", ":::"];
-  const out = replaceNumberedList(lines, 0, lines.length, ["**New** one", "New two", "New three"]);
-  assertEquals(out.slice(2, 6), ["1. **New** one", "2. New two", "3. New three", ""]);
+  const lines = [
+    "## Learning outcomes",
+    "",
+    "1. Old one",
+    "   wrapped",
+    "2. Old two",
+    "",
+    "::: notes",
+    ":::",
+  ];
+  const out = replaceNumberedList(lines, 0, lines.length, [
+    "**New** one",
+    "New two",
+    "New three",
+  ]);
+  assertEquals(out.slice(2, 6), [
+    "1. **New** one",
+    "2. New two",
+    "3. New three",
+    "",
+  ]);
   assertThrows(() => replaceNumberedList(["## X", "text"], 0, 2, ["a"]));
 });
 

@@ -1,5 +1,10 @@
 import { assertEquals, assertThrows } from "jsr:@std/assert@1";
-import { countSteps, parseQmd, type SourceLine, styleIssues } from "./outline.ts";
+import {
+  countSteps,
+  parseQmd,
+  type SourceLine,
+  styleIssues,
+} from "./outline.ts";
 import { inkBounds, parsePpm, trimmedBox } from "./sources.ts";
 import { isKeynote } from "./pptx.ts";
 
@@ -7,7 +12,10 @@ const src = (text: string): SourceLine[] =>
   text.split("\n").map((t, i) => ({ file: "a.qmd", line: i + 1, text: t }));
 
 Deno.test("countSteps counts animation steps, not text builds", () => {
-  assertEquals(countSteps("[a]{.fragment .step} [b]{.fragment} [c]{.step .fragment}"), 2);
+  assertEquals(
+    countSteps("[a]{.fragment .step} [b]{.fragment} [c]{.step .fragment}"),
+    2,
+  );
 });
 
 const DECK = `## Good paper slide
@@ -63,7 +71,9 @@ Deno.test("styleIssues applies the house rules and keeps DOI as a hint", () => {
 });
 
 Deno.test("styleIssues ignores hidden slides", () => {
-  const issues = styleIssues(parseQmd(src('## Hidden {visibility="hidden"}\n')).slides);
+  const issues = styleIssues(
+    parseQmd(src('## Hidden {visibility="hidden"}\n')).slides,
+  );
   assertEquals(issues, []);
 });
 

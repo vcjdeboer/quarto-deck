@@ -14,7 +14,7 @@
  * whose title contains a given text).
  * @module
  */
-import { z } from "npm:zod@4";
+import { z } from "npm:zod@4.6.7";
 import { type DeckPalette, DEFAULT_PALETTE, isDark, textOn } from "./brand.ts";
 
 /** Inputs for a paper slide. */

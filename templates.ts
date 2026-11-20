@@ -20,7 +20,7 @@
  * The file texts are embedded in `templates_bundle.ts` (`templates/build.ts`).
  * @module
  */
-import { z } from "npm:zod@4";
+import { z } from "npm:zod@4.6.7";
 import {
   type Brand,
   brandPalette,
@@ -881,7 +881,7 @@ export function recolourText(
 }
 
 /** Lines deck_init makes sure the deck folder's .gitignore has. */
-export const DECK_GITIGNORE = [".deck_backups/", ".quarto/"];
+export const DECK_GITIGNORE = [".deck_backups/", ".deck_previews/", ".quarto/"];
 
 /**
  * The deck folder's .gitignore with the edit-snapshot folder (and quarto's

@@ -11,7 +11,7 @@
  * live slide count.
  * @module
  */
-import { z } from "npm:zod@4";
+import { z } from "npm:zod@4.6.7";
 import { type ChromePage, launchChrome, waitForReveal } from "./chrome.ts";
 import { contactSheets } from "./check.ts";
 import { pdfPages } from "./pdf.ts";

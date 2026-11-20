@@ -8,11 +8,10 @@ import {
   boxToPixels,
   checkNumber,
   citationFromMeta,
-  referenceFromMeta,
   crc32,
   doiStem,
-  drawRect,
   drawGrid,
+  drawRect,
   encodePng,
   exifOrientation,
   extractNumbers,
@@ -25,6 +24,7 @@ import {
   normalizePaperText,
   type PageLayout,
   parseBboxLayout,
+  referenceFromMeta,
   resolveAnchor,
   sentenceAt,
   slideNumbers,
@@ -303,7 +303,8 @@ Deno.test("house-style source lines and references, lecturer in bold", () => {
     journal: "Molecular Cell",
     volume: "68",
     page: "412-425",
-    title: "Hexokinase 2 Binding to Mitochondria Sets the Pace of Glycolysis in Activated T Cells",
+    title:
+      "Hexokinase 2 Binding to Mitochondria Sets the Pace of Glycolysis in Activated T Cells",
   };
   assertEquals(
     citationFromMeta(okafor, "van Dam"),
@@ -488,12 +489,30 @@ Deno.test("sentenceAt does not stop at Fig. or et al.", () => {
 
 Deno.test("resolveAnchor panels=all runs past the next panel label to the caption", () => {
   const W = (text: string, x: number, y: number, block = 0) => ({
-    text, xMin: x, yMin: y, xMax: x + 6, yMax: y + 8, line: 0, block,
+    text,
+    xMin: x,
+    yMin: y,
+    xMax: x + 6,
+    yMax: y + 8,
+    line: 0,
+    block,
   });
   const page = {
-    page: 1, width: 600, height: 800,
-    words: [W("a", 50, 100), W("b", 50, 300), W("Figure", 40, 500, 1), W("1", 80, 500, 1)],
-    blocks: [{ xMin: 40, yMin: 100, xMax: 60, yMax: 310 }, { xMin: 40, yMin: 500, xMax: 300, yMax: 520 }],
+    page: 1,
+    width: 600,
+    height: 800,
+    words: [
+      W("a", 50, 100),
+      W("b", 50, 300),
+      W("Figure", 40, 500, 1),
+      W("1", 80, 500, 1),
+    ],
+    blocks: [{ xMin: 40, yMin: 100, xMax: 60, yMax: 310 }, {
+      xMin: 40,
+      yMin: 500,
+      xMax: 300,
+      yMax: 520,
+    }],
   } as unknown as PageLayout;
   const one = resolveAnchor(page, { from: "a", to: "Figure" });
   const all = resolveAnchor(page, { from: "a", to: "Figure", panels: "all" });
@@ -545,7 +564,11 @@ Deno.test("figure_crop needs exactly one of box and anchor; verify_numbers one o
 });
 
 Deno.test("drawGrid marks every 50 pt and labels every 100 pt", () => {
-  const img = { width: 300, height: 300, data: new Uint8Array(300 * 300 * 3).fill(255) };
+  const img = {
+    width: 300,
+    height: 300,
+    data: new Uint8Array(300 * 300 * 3).fill(255),
+  };
   drawGrid(img, 144); // 2 px per pt: lines at 100, 200 px
   const at = (x: number, y: number) => img.data[(y * 300 + x) * 3];
   assertEquals(at(100, 150) < 255, true); // 50 pt line

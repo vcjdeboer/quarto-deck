@@ -14,7 +14,7 @@
  * `tint-good`, `tint-bad`, `tint-neutral`, `tint-muted`.
  * @module
  */
-import { parse as parseYaml } from "jsr:@std/yaml@1";
+import { parse as parseYaml } from "jsr:@std/yaml@1.1.2";
 
 /** Colour roles of the diagram patterns. */
 export type Role = "good" | "bad" | "neutral" | "muted";

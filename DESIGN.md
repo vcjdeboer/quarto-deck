@@ -169,6 +169,15 @@ content (figures, hand-drawn SVG) on a light card, except on slides with
 their own dark background and diagrams drawn with the dark palette
 (`data-bg="dark"`).
 
+## 2026.11.20.2
+
+- Dependencies: exact versions (`@std/yaml@1.1.2`, `zod@4.6.7`); zip handling on `fflate` (MIT) in `zip.ts` instead of jszip; manifest declares `license: MIT`.
+- Chrome DevTools calls time out (120 s) and fail at once when Chrome closes, instead of hanging.
+- The build journal no longer resets when reading it fails.
+- `serve stop=true` works when the deck folder path contains spaces.
+- `figure_crop preview=true` writes to `<deck>/.deck_previews/` (one file per figure, overwritten) instead of a new temp folder each call; `deck_init` ignores it in `.gitignore`.
+- Figure records store the anchor with its schema; the template bundle is generated without very long lines.
+
 ## 2026.11.20.1
 
 - **Templates**: `wur`, `neutral`, `dark`, `contrast` (`templates/`), colours from the deck's `_brand.yml` (`brand.ts`); shared classes in `deck-base.html`. Methods `template_list`, `deck_init`, `template_apply` (snapshot first; `keepBrand=true`, opt-in `recolour=true`), `template_preview`.

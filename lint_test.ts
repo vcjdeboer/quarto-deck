@@ -200,17 +200,32 @@ Deno.test("references: incomplete .src lines and the lecturer not in bold", () =
     lintDeck(slidesOf(text), false, "van Dam").issues
       .filter((i) => i.rule === "references").map((i) => i.id);
   assertEquals(
-    ids("## A\n\n![](a.png)\n\n[Hirschey et al. 2010, Nature 464:121, Fig. 3]{.src}" + N("Hirschey MD (2010) T. Nature 464:121–125")),
+    ids(
+      "## A\n\n![](a.png)\n\n[Hirschey et al. 2010, Nature 464:121, Fig. 3]{.src}" +
+        N("Hirschey MD (2010) T. Nature 464:121–125"),
+    ),
     [],
   );
-  assertEquals(ids("## A\n\n![](a.png)\n\n[Hirschey et al., Nature 2010]{.src}" + N("x")), ["src-incomplete"]);
-  assertEquals(ids("## A\n\n![](a.png)\n\n[van Dam, unpublished]{.src}" + N("x")), ["author-not-bold"]);
   assertEquals(
-    ids("## A\n\n![](a.png)\n\n[Okafor, Lindqvist, Santos, van Dam et al. 2017, Mol Cell 68:412]{.src}" + N("Okafor L, **van Dam AM** (2017) T. Mol Cell 68:412–425")),
+    ids("## A\n\n![](a.png)\n\n[Hirschey et al., Nature 2010]{.src}" + N("x")),
+    ["src-incomplete"],
+  );
+  assertEquals(
+    ids("## A\n\n![](a.png)\n\n[van Dam, unpublished]{.src}" + N("x")),
     ["author-not-bold"],
   );
   assertEquals(
-    ids("## A\n\n![](a.png)\n\n[Okafor, Lindqvist, Santos, **van Dam** et al. 2017, Mol Cell 68:412]{.src}" + N("Okafor L, van Dam AM (2017)")),
+    ids(
+      "## A\n\n![](a.png)\n\n[Okafor, Lindqvist, Santos, van Dam et al. 2017, Mol Cell 68:412]{.src}" +
+        N("Okafor L, **van Dam AM** (2017) T. Mol Cell 68:412–425"),
+    ),
+    ["author-not-bold"],
+  );
+  assertEquals(
+    ids(
+      "## A\n\n![](a.png)\n\n[Okafor, Lindqvist, Santos, **van Dam** et al. 2017, Mol Cell 68:412]{.src}" +
+        N("Okafor L, van Dam AM (2017)"),
+    ),
     ["author-not-bold"],
   );
 });
@@ -223,14 +238,17 @@ Deno.test("lint findings carry the slide-counter number", () => {
     "",
     '## Hidden {visibility="hidden"}',
     "",
-    "## Two {lint-ignore=\"nope\"}",
+    '## Two {lint-ignore="nope"}',
     "",
   ].join("\n");
   const o = outlineFromSlides("m.qmd", ["m.qmd"], parseQmd(src(text)));
   const x = o.styleIssues.find((i) => i.id === "unknown-ignore")!;
   // source slide 2; title slide = 1, hidden slide unnumbered -> counter 2
   assertEquals([x.slide, x.shown], [2, 2]);
-  assertEquals(issueSlide({ slide: 5, shown: null }), "hidden slide (source 5)");
+  assertEquals(
+    issueSlide({ slide: 5, shown: null }),
+    "hidden slide (source 5)",
+  );
   assertEquals(shownNumbers(parseQmd(src(text)).slides, false).get(2), 1);
 });
 

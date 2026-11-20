@@ -576,7 +576,10 @@ Deno.test("recolour maps old brand roles to new ones, exact matches only", () =>
   const r = recolourText(text, "m.qmd", map, true);
   const lines = r.text.split("\n");
   assertEquals(lines[1].includes(p), true); // front matter untouched
-  assertEquals(lines[3], `<rect fill="${normHex(dark.primary).toLowerCase()}" stroke="#123456"/>`);
+  assertEquals(
+    lines[3],
+    `<rect fill="${normHex(dark.primary).toLowerCase()}" stroke="#123456"/>`,
+  );
   assertStringIncludes(lines[4], `color:${normHex(dark.primary)}`);
   assertStringIncludes(lines[4], "(#add) &#123;");
   assertEquals(r.changes.map((c) => c.line), [4, 5]);
@@ -584,14 +587,25 @@ Deno.test("recolour maps old brand roles to new ones, exact matches only", () =>
   // same palette: nothing to map
   assertEquals(colourMap(wur, wur).map.size, 0);
   // wur primary is also ink/section/titleSlide: mapped as primary, reported
-  const sh = colourMap(wur, dark).shared.find((x) => x.hex === normHex(wur.primary));
+  const sh = colourMap(wur, dark).shared.find((x) =>
+    x.hex === normHex(wur.primary)
+  );
   assertEquals(sh?.as, "primary");
 });
 
 Deno.test("gitignoreWith adds the snapshot folder once", () => {
-  assertEquals(gitignoreWith(null), ".deck_backups/\n.quarto/\n");
-  assertEquals(gitignoreWith("*.html"), "*.html\n.deck_backups/\n.quarto/\n");
-  assertEquals(gitignoreWith("/.deck_backups\n.quarto/\n"), null);
+  assertEquals(
+    gitignoreWith(null),
+    ".deck_backups/\n.deck_previews/\n.quarto/\n",
+  );
+  assertEquals(
+    gitignoreWith("*.html"),
+    "*.html\n.deck_backups/\n.deck_previews/\n.quarto/\n",
+  );
+  assertEquals(
+    gitignoreWith("/.deck_backups\n.deck_previews/\n.quarto/\n"),
+    null,
+  );
 });
 
 Deno.test("model registers the template methods and resources", () => {

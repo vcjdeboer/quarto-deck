@@ -10,9 +10,9 @@ import {
   blockLabels,
   counterNumbers,
   counterUnsafe,
+  editSlideLines,
   hashedName,
   holdEntry,
-  editSlideLines,
   imageRefs,
   insertLines,
   longDate,
@@ -651,18 +651,18 @@ Deno.test("slide_insert rejects text without a heading and needs one of after/be
 
 Deno.test("slide_edit: title keeps attributes, notes keep Ref/CHECK, maxHeight sets the style", () => {
   const lines = [
-    '## Old title {.plain}',
-    '',
-    '![](a.png){.r-stretch}',
-    '',
-    '[Hirschey et al. 2010, Nature 464:121]{.src}',
-    '',
-    '::: notes',
+    "## Old title {.plain}",
+    "",
+    "![](a.png){.r-stretch}",
+    "",
+    "[Hirschey et al. 2010, Nature 464:121]{.src}",
+    "",
+    "::: notes",
     "~2'. Old words.",
-    'Ref: Hirschey MD (2010) T. Nature 464:121–125, doi:10.1038/nature08778.',
-    'CHECK: panel b?',
-    ':::',
-    '',
+    "Ref: Hirschey MD (2010) T. Nature 464:121–125, doi:10.1038/nature08778.",
+    "CHECK: panel b?",
+    ":::",
+    "",
   ];
   const span = slideSpan(lines, 1, null);
   const r = editSlideLines(lines, span, {
