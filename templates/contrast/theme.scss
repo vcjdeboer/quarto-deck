@@ -1,0 +1,27 @@
+/*-- scss:defaults --*/
+// quarto-deck template "contrast": high contrast for large rooms and printed
+// hand-outs. White, black, one strong accent, heavier type and larger
+// small print. Atkinson Hyperlegible (designed for low-vision readers).
+@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
+// Diagram text keeps a narrower face: SVG layouts are measured for it.
+$qd-font-diagram: "IBM Plex Sans", $qd-font-base, sans-serif;
+
+$qd-heading: #000000;
+$qd-statement: #000000;
+$qd-strong: $qd-primary;
+$qd-dim: #3D3D3D;
+$qd-src-size: 0.55em;
+$qd-small-size: 0.6em;
+$qd-top-bar: 8px;
+
+/*-- scss:rules --*/
+.reveal h2 { font-weight: 700; }
+.reveal section:not(.statement):not(.section):not(.dark):not(.plain) > h2 {
+  padding-bottom: 0.15em; border-bottom: 4px solid $qd-accent;
+}
+.reveal figcaption, .reveal .caption { font-size: 0.75em; }
+.reveal .slide-number { font-size: 0.7em; color: #000; }
+// minimum sizes for the small classes of deck-base.html
+.reveal .plab { font-size: 0.48em !important; }
+.reveal .cred, .reveal .credit-photo span { font-size: 0.5em !important; }

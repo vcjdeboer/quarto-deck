@@ -15,6 +15,23 @@ inputs:
       type: boolean
       default: false
       description: Export the image-based PowerPoint
+    pdfSplit:
+      type: string
+      default: ""
+      description: 'Split the PDF: "sections", "at:<n>" or start pages "30,60" (empty: one PDF)'
+    pdfSuffix:
+      type: string
+      default: ""
+      description: "Appended to PDF file names, e.g. 18nov2026"
+    pdfFormat:
+      type: string
+      enum: ["jpeg", "png"]
+      default: jpeg
+      description: Page image format; jpeg keeps a hand-out small enough to mail
+    pdfQuality:
+      type: number
+      default: 85
+      description: JPEG quality (pdfFormat=jpeg only)
     force:
       type: boolean
       default: false
@@ -62,6 +79,11 @@ jobs:
           type: model_method
           modelIdOrName: ${{ inputs.deck }}
           methodName: export_pdf
+          inputs:
+            split: ${{ inputs.pdfSplit }}
+            suffix: ${{ inputs.pdfSuffix }}
+            format: ${{ inputs.pdfFormat }}
+            quality: ${{ inputs.pdfQuality }}
       - name: pptx
         guard: ${{ !inputs.pptx }}
         task:

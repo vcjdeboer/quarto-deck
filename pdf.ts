@@ -1,10 +1,9 @@
 /**
- * Print a rendered reveal.js deck to PDF with headless Chrome (`?print-pdf`),
- * and shrink it for distribution with a macOS Quartz filter (JPEG-recompress
- * and downsample embedded images).
+ * PDF helpers for the hand-out: page count via `pdfinfo`, and shrinking for
+ * distribution with a macOS Quartz filter (JPEG-recompress and downsample
+ * embedded images). The PDF itself is built from screenshots in export.ts.
  * @module
  */
-import { MAC_CHROME } from "./chrome.ts";
 
 /** Quartz filter plist: JPEG quality 0–1, target dpi, max image side in px. */
 export function quartzFilterPlist(
@@ -69,35 +68,6 @@ export async function pdfPages(pdf: string): Promise<number | null> {
     return m ? Number(m[1]) : null;
   } catch {
     return null;
-  }
-}
-
-/** Print `html` to `out` with Chrome's reveal.js print layout. */
-export async function printDeck(opts: {
-  html: string;
-  out: string;
-  chrome?: string;
-  budgetMs?: number;
-}): Promise<void> {
-  const profile = await Deno.makeTempDir({ prefix: "quarto-deck-print-" });
-  try {
-    const r = await run(opts.chrome ?? MAC_CHROME, [
-      "--headless=new",
-      "--disable-gpu",
-      "--no-pdf-header-footer",
-      `--virtual-time-budget=${opts.budgetMs ?? 15000}`,
-      `--user-data-dir=${profile}`,
-      `--print-to-pdf=${opts.out}`,
-      `file://${opts.html}?print-pdf`,
-    ]);
-    const st = await Deno.stat(opts.out).catch(() => null);
-    if (!st || st.size === 0) {
-      throw new Error(
-        `Chrome did not write ${opts.out}: ${r.stderr.slice(-400)}`,
-      );
-    }
-  } finally {
-    await Deno.remove(profile, { recursive: true }).catch(() => {});
   }
 }
 

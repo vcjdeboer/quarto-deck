@@ -49,7 +49,17 @@ export interface DeckData {
   journal?: { entries: Array<Rec> };
   figures: Rec[];
   sources: Rec[];
+  /** figure_from_image records (screenshots, publisher figures, photos). */
+  images?: Rec[];
 }
+
+/** Slide-counter number when the outline has it (older outlines: source n). */
+const num = (x: { slide: number; shown?: number | null }) =>
+  x.shown === undefined
+    ? String(x.slide)
+    : x.shown === null
+    ? `hidden (source ${x.slide})`
+    : String(x.shown);
 
 const esc = (s: unknown) =>
   String(s ?? "").replace(/\|/g, "\\|").replace(/\n/g, " ");
@@ -68,6 +78,7 @@ export function summarize(d: DeckData, journalTail = 15): ReportResult {
       untimedVisible: number[];
       checks: Array<{ slide: number | null; file: string; text: string }>;
       missingImages: Array<{ slide: number; path: string }>;
+      missingIncludes?: string[];
       dois: string[];
       slides: Array<
         { n: number; title: string; hidden: boolean; minutes: number | null }
@@ -78,12 +89,41 @@ export function summarize(d: DeckData, journalTail = 15): ReportResult {
       styleIssues?: Array<
         {
           slide: number;
+          shown?: number | null;
           title: string;
           rule: string;
           level?: string;
           message: string;
+          id?: string;
+          file?: string;
+          line?: number;
         }
       >;
+      suppressed?: Array<
+        { slide: number; shown?: number | null; id?: string; rule: string }
+      >;
+      outcomes?: {
+        opening: number | null;
+        closing: number | null;
+        match: boolean | null;
+        differences: string[];
+        items: Array<{
+          n: number;
+          terms: Array<{ term: string; slides: number[] }>;
+          slides: number[];
+        }>;
+      } | null;
+      cut?: {
+        slotMinutes: number | null;
+        overSlot: number | null;
+        sections: Array<{
+          title: string;
+          slides: number;
+          minutes: number;
+          share: number | null;
+          longest: Array<{ slide: number; title: string; minutes: number }>;
+        }>;
+      };
     }
     | undefined;
   md.push(`# ${o?.title ?? "Deck"} — summary`, "");
@@ -110,7 +150,33 @@ export function summarize(d: DeckData, journalTail = 15): ReportResult {
       "",
     );
     const secs = o.sections ?? [];
-    if (secs.length > 1) {
+    const cut = o.cut;
+    if (cut && cut.sections.length) {
+      md.push(
+        "### Where the time goes",
+        "",
+        "| section | slides | min | share of slot | longest slides |",
+        "|---|---|---|---|---|",
+      );
+      for (const x of cut.sections) {
+        md.push(
+          `| ${esc(x.title)} | ${x.slides} | ${x.minutes} | ${
+            x.share === null ? "" : `${Math.round(x.share * 100)}%`
+          } | ${
+            esc(
+              x.longest.map((l) =>
+                `${l.minutes}' ${l.title}`
+              ).join("; "),
+            )
+          } |`,
+        );
+      }
+      md.push("");
+      if (cut.overSlot !== null && cut.overSlot > 0) {
+        md.push(`Cut **${cut.overSlot} min** to fit the slot.`, "");
+      }
+      json.overSlot = cut.overSlot;
+    } else if (secs.length > 1) {
       md.push("| section | slides | min |", "|---|---|---|");
       for (const x of secs) {
         md.push(`| ${esc(x.title)} | ${x.slides} | ${x.minutes} |`);
@@ -120,12 +186,14 @@ export function summarize(d: DeckData, journalTail = 15): ReportResult {
     json.minutesPlanned = o.minutesPlanned;
     json.slotMinutes = o.slotMinutes;
     json.visibleSlides = o.visibleSlides;
-    if (o.checks.length || o.missingImages.length) {
+    const missingIncludes = o.missingIncludes ?? [];
+    if (o.checks.length || o.missingImages.length || missingIncludes.length) {
       md.push("## Open items", "");
+      for (const m of missingIncludes) {
+        md.push(`- missing file: \`${m}\``);
+      }
       for (const c of o.checks) {
-        const t = c.slide
-          ? o.slides.find((s) => s.n === c.slide)?.title
-          : "";
+        const t = c.slide ? o.slides.find((s) => s.n === c.slide)?.title : "";
         md.push(`- CHECK (${c.file}${t ? `, “${t}”` : ""}): ${c.text}`);
       }
       for (const m of o.missingImages) {
@@ -136,10 +204,15 @@ export function summarize(d: DeckData, journalTail = 15): ReportResult {
     const style = o.styleIssues ?? [];
     const rules = style.filter((x) => x.level !== "hint");
     const hints = style.filter((x) => x.level === "hint");
-    if (style.length) {
+    const suppressed = o.suppressed ?? [];
+    if (style.length || suppressed.length) {
       md.push("## House style", "");
       for (const x of rules) {
-        md.push(`- slide ${x.slide} “${x.title}”: ${x.message}`);
+        const where = x.file ? ` (${x.file}:${x.line})` : "";
+        const id = x.id ? `[${x.id}] ` : "";
+        md.push(
+          `- ${id}slide ${num(x)} “${esc(x.title)}”${where}: ${x.message}`,
+        );
       }
       const byRule = new Map<string, typeof hints>();
       for (const h of hints) {
@@ -147,11 +220,45 @@ export function summarize(d: DeckData, journalTail = 15): ReportResult {
       }
       for (const [msg, hs] of byRule) {
         md.push(`- hint (${hs.length}): ${msg} — slides ${
-          hs.map((h) => h.slide).join(", ")
+          hs.map(num).join(", ")
         }`);
+      }
+      if (suppressed.length) {
+        md.push(
+          `- suppressed with lint-ignore (${suppressed.length}): ${
+            suppressed.map((x) =>
+              `slide ${num(x)} ${x.id ?? x.rule}`
+            ).join(", ")
+          }`,
+        );
       }
       md.push("");
     }
+    const lo = o.outcomes;
+    if (lo && lo.items.length) {
+      md.push(
+        "## Learning outcomes",
+        "",
+        lo.match === null
+          ? "Only one outcome list in the deck."
+          : lo.match
+          ? "Opening and closing lists match."
+          : `**Opening and closing lists differ** (${lo.differences.length}).`,
+        "",
+        "| # | key terms | slides |",
+        "|---|---|---|",
+      );
+      for (const it of lo.items) {
+        md.push(
+          `| ${it.n} | ${
+            esc(it.terms.map((t) => t.term).join(", "))
+          } | ${it.slides.length ? it.slides.join(", ") : "**none**"} |`,
+        );
+      }
+      md.push("");
+      json.outcomesMatch = lo.match;
+    }
+    json.styleSuppressed = suppressed.length;
     json.styleIssues = rules.length;
     json.styleHints = hints.length;
     json.checks = o.checks.length;
@@ -161,6 +268,14 @@ export function summarize(d: DeckData, journalTail = 15): ReportResult {
     | {
       slideCount: number;
       overflowing: Array<{ n: number; title: string; overflowPx: number }>;
+      logoOverlaps?: Array<
+        {
+          n: number;
+          title: string;
+          logoOverlapPx?: number;
+          logoOverlapElement?: string;
+        }
+      >;
     }
     | undefined;
   if (c) {
@@ -171,10 +286,26 @@ export function summarize(d: DeckData, journalTail = 15): ReportResult {
       ...c.overflowing.map((s) =>
         `- slide ${s.n} “${s.title}” overflows by ${s.overflowPx}px`
       ),
+      ...(c.logoOverlaps ?? []).map((s) =>
+        `- slide ${s.n} “${s.title}”: ${
+          s.logoOverlapElement || "a figure"
+        } runs under the logo (${s.logoOverlapPx}px)`
+      ),
       "",
     );
     json.overflowing = c.overflowing.length;
+    json.logoOverlaps = (c.logoOverlaps ?? []).length;
   }
+  // only crops that a slide shows; earlier crops and previews are counted
+  const shownImages = new Set(
+    ((o?.slides ?? []) as Array<{ images?: string[] }>).flatMap((s) =>
+      s.images ?? []
+    ),
+  );
+  const onSlide = (f: Rec) =>
+    !o || shownImages.size === 0 || shownImages.has(String(f.path));
+  const usedFigures = d.figures.filter(onSlide);
+  const unusedFigures = d.figures.length - usedFigures.length;
   if (d.figures.length) {
     md.push(
       "## Figure provenance",
@@ -182,7 +313,7 @@ export function summarize(d: DeckData, journalTail = 15): ReportResult {
       "| image | source | page | box (pt) | dpi | DOI |",
       "|---|---|---|---|---|---|",
     );
-    for (const f of d.figures) {
+    for (const f of usedFigures) {
       const b = f.boxPt as { x: number; y: number; w: number; h: number };
       md.push(
         `| \`${esc(f.path)}\` | ${esc(f.citation)} | ${f.page} | ${
@@ -192,8 +323,37 @@ export function summarize(d: DeckData, journalTail = 15): ReportResult {
         } | ${f.dpi} | ${esc(f.doi ?? "")} |`,
       );
     }
+    if (unusedFigures) {
+      md.push(
+        "",
+        `${unusedFigures} more crop(s) on no slide (earlier versions or not used).`,
+      );
+    }
     md.push("");
-    json.figures = d.figures.length;
+    json.figures = usedFigures.length;
+    json.figuresUnused = unusedFigures;
+  }
+  if (d.images?.length) {
+    md.push(
+      "## Images (not from a paper PDF)",
+      "",
+      "| image | original | box (px) | credit | rights |",
+      "|---|---|---|---|---|",
+    );
+    for (const f of d.images) {
+      const b = f.boxPx as
+        | { x: number; y: number; w: number; h: number }
+        | null;
+      md.push(
+        `| \`${esc(f.path)}\` | ${
+          esc(String(f.original ?? "").split("/").pop())
+        } | ${b ? `${b.x},${b.y} ${b.w}×${b.h}` : "whole"} | ${
+          esc(f.credit)
+        } | ${esc(f.rights ?? "")} |`,
+      );
+    }
+    md.push("");
+    json.images = d.images.length;
   }
   if (o?.dois.length) {
     md.push(
@@ -213,7 +373,12 @@ export function summarize(d: DeckData, journalTail = 15): ReportResult {
     }
     | undefined;
   const p = d.pdfInfo as
-    | { path: string; pages: number; bytes: number }
+    | {
+      path: string;
+      pages: number;
+      bytes: number;
+      parts?: Array<{ path: string; pages: number; bytes: number }>;
+    }
     | undefined;
   const x = d.pptxInfo as
     | { path: string; slides: number; bytes: number }
@@ -226,10 +391,10 @@ export function summarize(d: DeckData, journalTail = 15): ReportResult {
           (b.warnings.length ? `, ${b.warnings.length} warnings` : ""),
       );
     }
-    if (p) {
+    for (const q of p?.parts?.length ? p.parts : p ? [p] : []) {
       md.push(
-        `- PDF \`${p.path}\`: ${p.pages} pages, ${
-          (p.bytes / 1e6).toFixed(1)
+        `- PDF \`${q.path}\`: ${q.pages} pages, ${
+          (q.bytes / 1e6).toFixed(1)
         } MB`,
       );
     }
@@ -302,6 +467,7 @@ export async function loadDeckData(ctx: SummaryContext): Promise<DeckData> {
     journal: await read("journal") as { entries: Rec[] } | undefined,
     figures: await many("figure-"),
     sources: await many("source-"),
+    images: await many("image-"),
   };
 }
 

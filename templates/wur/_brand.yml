@@ -1,0 +1,37 @@
+# quarto-deck template "wur": Wageningen University & Research look
+# (navy + Wageningen green, Archivo headings, IBM Plex Sans body).
+# The WUR logo is not shipped: pass logo= to deck_init / template_apply.
+meta:
+  name: wur
+color:
+  palette:
+    navy: "#12384A"
+    green: "#34B233"
+    green-ink: "#2E8B2C"
+    green-dark: "#2E7D32"
+    red: "#C0392B"
+    grey: "#6B6B6B"
+    off-white: "#FAFAF7"
+    near-black: "#1A1A1A"
+    accent: "#34B233"
+    accent-ink: "#2E8B2C"
+    ink: "#12384A"
+    surface: "#FFFFFF"
+    pill: "#E3E8EB"
+    rule: "#E6EBEE"
+    highlight: "#CFE8C4"
+    on-primary: "#FFFFFF"
+    on-section: "#FFFFFF"
+    title-slide: "#12384A"
+    tint-good: "#EEF5EA"
+    tint-bad: "#FBEDEB"
+    tint-neutral: "#EEF2F4"
+    tint-muted: "#F2F2F2"
+  primary: navy
+  success: green-dark
+  danger: red
+  foreground: near-black
+  background: off-white
+typography:
+  base: IBM Plex Sans
+  headings: Archivo

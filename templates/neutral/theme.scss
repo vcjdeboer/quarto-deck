@@ -1,0 +1,14 @@
+/*-- scss:defaults --*/
+// quarto-deck template "neutral": plain academic. White background,
+// near-black text, one blue accent, Source Sans Pro (bundled with Quarto,
+// so it works offline). No bars, no ticks.
+
+$qd-heading: $qd-fg;
+$qd-statement: $qd-fg;
+$qd-strong: $qd-primary;
+
+/*-- scss:rules --*/
+// titles get a hairline instead of a tick
+.reveal section:not(.statement):not(.section):not(.dark):not(.plain) > h2 {
+  padding-bottom: 0.18em; border-bottom: 1px solid $qd-rule;
+}

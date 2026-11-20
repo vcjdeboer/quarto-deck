@@ -1,6 +1,6 @@
 import { assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
 import { htmlPath, model } from "./quarto_deck.ts";
-import { overflowing, sheetPages } from "./check.ts";
+import { logoOverlaps, overflowing, sheetPages } from "./check.ts";
 import { quartzFilterPlist } from "./pdf.ts";
 import { warningsFromLog } from "./render.ts";
 
@@ -30,8 +30,12 @@ Deno.test("overflowing applies the tolerance", () => {
     fragments: 0,
     overflowPx: px,
     overflowElement: "",
+    logoOverlapPx: px * 2,
+    logoOverlapElement: "",
   });
   assertEquals(overflowing([s(1, 2), s(2, 3)]).map((x) => x.n), [2]);
+  // logo tolerance 4px: overlaps of 4 and 6 -> only the 6
+  assertEquals(logoOverlaps([s(1, 2), s(2, 3)]).map((x) => x.n), [2]);
 });
 
 Deno.test("quartzFilterPlist carries the settings", () => {

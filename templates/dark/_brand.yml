@@ -1,0 +1,31 @@
+# quarto-deck template "dark": dark slate background, light text, teal
+# accent. For evening talks and projectors in dim rooms.
+meta:
+  name: dark
+color:
+  palette:
+    slate: "#0F172A"
+    slate-light: "#1E293B"
+    paper: "#E2E8F0"
+    white: "#F8FAFC"
+    teal: "#2DD4BF"
+    teal-deep: "#115E59"
+    green: "#4ADE80"
+    red: "#F87171"
+    grey: "#94A3B8"
+    accent: "#2DD4BF"
+    ink: "#F1F5F9"
+    surface: "#1E293B"
+    pill: "#334155"
+    rule: "#334155"
+    highlight: "#5EEAD4"
+    section: "#115E59"
+    on-section: "#F8FAFC"
+  primary: teal
+  success: green
+  danger: red
+  foreground: paper
+  background: slate
+typography:
+  base: Inter
+  headings: Inter

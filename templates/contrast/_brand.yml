@@ -1,0 +1,25 @@
+# quarto-deck template "contrast": high contrast for large rooms and printed
+# hand-outs. White, black, one strong accent, larger small print, Atkinson
+# Hyperlegible.
+meta:
+  name: contrast
+color:
+  palette:
+    black: "#000000"
+    white: "#FFFFFF"
+    cobalt: "#0038A8"
+    green: "#006B2D"
+    red: "#B00020"
+    grey: "#3D3D3D"
+    ink: "#000000"
+    pill: "#E6E6E6"
+    rule: "#000000"
+    highlight: "#FFE066"
+  primary: cobalt
+  success: green
+  danger: red
+  foreground: black
+  background: white
+typography:
+  base: Atkinson Hyperlegible
+  headings: Atkinson Hyperlegible

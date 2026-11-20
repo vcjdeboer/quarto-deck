@@ -25,6 +25,17 @@ export interface SourceRecord {
   pageSizes: Array<{ page: number; width: number; height: number }>;
   captions: Caption[];
   addedAt: string;
+  /** Paper metadata from the papers folder `.json` (absent without one). */
+  meta?: {
+    authors: string[];
+    title: string | null;
+    journal: string | null;
+    year: number | null;
+    volume: string | null;
+    page: string | null;
+  };
+  /** Full reference built from `meta` (house style, no DOI). */
+  reference?: string | null;
 }
 
 /** A text hit. */
@@ -126,12 +137,15 @@ export function pixelCrop(
   boxPt: { x: number; y: number; w: number; h: number },
   dpi: number,
 ): { x: number; y: number; W: number; H: number } {
+  // round the edges, not the size, so neighbouring boxes and trimmed boxes
+  // keep exactly dpi/72 pixels per point (no ±1 px drift)
   const s = dpi / 72;
+  const x = Math.round(boxPt.x * s), y = Math.round(boxPt.y * s);
   return {
-    x: Math.round(boxPt.x * s),
-    y: Math.round(boxPt.y * s),
-    W: Math.round(boxPt.w * s),
-    H: Math.round(boxPt.h * s),
+    x,
+    y,
+    W: Math.round((boxPt.x + boxPt.w) * s) - x,
+    H: Math.round((boxPt.y + boxPt.h) * s) - y,
   };
 }
 

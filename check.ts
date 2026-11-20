@@ -1,7 +1,8 @@
 /**
  * Walk a rendered reveal.js deck in headless Chrome: per slide the title,
- * reveal indices and overflow beyond the slide box (all fragments shown), a
- * screenshot, and contact sheets built from those screenshots.
+ * reveal indices, overflow beyond the slide box (all fragments shown), images
+ * under the deck logo, a screenshot, and contact sheets built from those
+ * screenshots.
  * @module
  */
 import { type ChromePage, launchChrome, waitForReveal } from "./chrome.ts";
@@ -15,6 +16,14 @@ export interface SlideCheck {
   fragments: number;
   overflowPx: number;
   overflowElement: string;
+  /**
+   * Smaller side (slide px) of the largest overlap between an image, SVG,
+   * video or canvas on the slide and the visible deck logo; 0 when none.
+   */
+  logoOverlapPx: number;
+  logoOverlapElement: string;
+  /** Image max-height (slide px) that would clear the logo; 0 when none. */
+  logoFitMaxHeight?: number;
 }
 
 /** Result of checking a whole deck. */
@@ -22,6 +31,13 @@ export interface DeckCheck {
   html: string;
   slideCount: number;
   overflowing: SlideCheck[];
+  /** Slides where a figure runs under the logo (`logoOverlapPx` > tolerance). */
+  logoOverlaps: SlideCheck[];
+  /**
+   * What sits on top of the menu button (three stripes) on the first slide,
+   * so clicks do not reach it; null when the button is clickable or absent.
+   */
+  menuCoveredBy?: string | null;
   slides: SlideCheck[];
   width: number;
   height: number;
@@ -35,6 +51,14 @@ export function overflowing(
   return slides.filter((s) => s.overflowPx > tolerancePx);
 }
 
+/** Slides where a figure overlaps the logo by more than `tolerancePx`. */
+export function logoOverlaps(
+  slides: SlideCheck[],
+  tolerancePx = 4,
+): SlideCheck[] {
+  return slides.filter((s) => s.logoOverlapPx > tolerancePx);
+}
+
 /** Group slide numbers into contact-sheet pages. */
 export function sheetPages(n: number, perSheet: number): number[][] {
   const pages: number[][] = [];
@@ -46,11 +70,42 @@ export function sheetPages(n: number, perSheet: number): number[][] {
   return pages;
 }
 
-const MEASURE = (w: number, h: number) =>
+/**
+ * Page script: worst overflow of the current slide beyond its `w`×`h` box,
+ * and the largest overlap of a figure with the visible deck logo.
+ */
+export const MEASURE = (w: number, h: number) =>
   `(async () => {
   const slide = Reveal.getCurrentSlide();
   const box = slide.getBoundingClientRect();
   const scale = Reveal.getScale();
+  const label = (el) => {
+    const cls = typeof el.className === 'string' ? el.className : (el.className.baseVal || '');
+    return el.tagName.toLowerCase() + (cls ? '.' + cls.trim().split(/\\s+/).join('.') : '') +
+      (el.getAttribute('src') ? ' ' + el.getAttribute('src').split('/').pop() : '');
+  };
+  const logo = document.querySelector('.reveal .slide-logo');
+  let lr = null;
+  if (logo) {
+    const cs = getComputedStyle(logo);
+    const r = logo.getBoundingClientRect();
+    if (cs.display !== 'none' && cs.visibility !== 'hidden' && Number(cs.opacity) > 0 && r.width && r.height) lr = r;
+  }
+  let logoPx = 0, logoWho = '', logoFit = 0;
+  if (lr) {
+    slide.querySelectorAll('img, svg, video, canvas').forEach((el) => {
+      if (el.closest('aside.notes') || el.parentElement.closest('svg')) return;
+      const r = el.getBoundingClientRect();
+      if (!r.height || !r.width) return;
+      const ow = Math.min(r.right, lr.right) - Math.max(r.left, lr.left);
+      const oh = Math.min(r.bottom, lr.bottom) - Math.max(r.top, lr.top);
+      const side = ow > 0 && oh > 0 ? Math.min(ow, oh) / scale : 0;
+      if (side > logoPx) {
+        logoPx = side; logoWho = label(el);
+        logoFit = Math.max(0, Math.floor((r.height - Math.max(oh, 0)) / scale) - 8);
+      }
+    });
+  }
   let worst = 0, who = '';
   slide.querySelectorAll('img, svg, video, canvas, p, li, table, .columns, .r-stack, h1, h2, h3, pre')
     .forEach((el) => {
@@ -63,12 +118,16 @@ const MEASURE = (w: number, h: number) =>
       );
       if (over > worst) {
         worst = over;
-        const cls = typeof el.className === 'string' ? el.className : (el.className.baseVal || '');
-        who = el.tagName.toLowerCase() + (cls ? '.' + cls.trim().split(/\\s+/).join('.') : '') +
-          (el.getAttribute('src') ? ' ' + el.getAttribute('src').split('/').pop() : '');
+        who = label(el);
       }
     });
-  return { overflowPx: Math.round(worst), overflowElement: who };
+  return {
+    overflowPx: Math.round(worst),
+    overflowElement: who,
+    logoOverlapPx: Math.round(logoPx),
+    logoOverlapElement: logoWho,
+    logoFitMaxHeight: logoFit,
+  };
 })()`;
 
 /** Navigate to slide `i` (0-based in Reveal.getSlides()) with all fragments shown. */
@@ -112,13 +171,29 @@ export async function checkDeck(opts: {
     await page.evaluate(
       "Reveal.configure({ transition: 'none', backgroundTransition: 'none', controls: false, progress: false })",
     );
+    const menuCoveredBy = await page.evaluate<string | null>(`(() => {
+      const btn = document.querySelector('.slide-menu-button');
+      if (!btn) return null;
+      const b = btn.getBoundingClientRect();
+      if (!b.width || !b.height) return null;
+      const top = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+      if (!top || btn.contains(top)) return null;
+      const cls = typeof top.className === 'string' ? top.className : '';
+      return top.tagName.toLowerCase() + (cls ? '.' + cls.trim().split(/\\s+/).join('.') : '');
+    })()`);
     const n = await page.evaluate<number>("Reveal.getSlides().length");
     const slides: SlideCheck[] = [];
     const shots: Uint8Array[] = [];
     for (let i = 0; i < n; i++) {
       const info = await showSlide(page, i);
       const m = await page.evaluate<
-        { overflowPx: number; overflowElement: string }
+        {
+          overflowPx: number;
+          overflowElement: string;
+          logoOverlapPx: number;
+          logoOverlapElement: string;
+          logoFitMaxHeight: number;
+        }
       >(
         MEASURE(width, height),
       );
@@ -132,6 +207,8 @@ export async function checkDeck(opts: {
         html: opts.html,
         slideCount: n,
         overflowing: overflowing(slides),
+        logoOverlaps: logoOverlaps(slides),
+        menuCoveredBy,
         slides,
         width,
         height,
@@ -147,7 +224,13 @@ export async function checkDeck(opts: {
 export async function contactSheets(
   shots: Uint8Array[],
   titles: string[],
-  opts: { chrome?: string; cols?: number; rows?: number } = {},
+  opts: {
+    chrome?: string;
+    cols?: number;
+    rows?: number;
+    /** Label numbers per shot (default 1..n), e.g. deck numbers for a part. */
+    numbers?: number[];
+  } = {},
 ): Promise<Uint8Array[]> {
   const cols = opts.cols ?? 3;
   const rows = opts.rows ?? 4;
@@ -168,9 +251,9 @@ export async function contactSheets(
       s.replace(/[<&>"]/g, (c) => `&#${c.charCodeAt(0)};`);
     for (const [k, nums] of sheetPages(shots.length, cols * rows).entries()) {
       const cells = nums.map((n) =>
-        `<figure><img src="s${n}.jpg"><figcaption>${n}. ${
-          esc(titles[n - 1] ?? "")
-        }</figcaption></figure>`
+        `<figure><img src="s${n}.jpg"><figcaption>${
+          opts.numbers?.[n - 1] ?? n
+        }. ${esc(titles[n - 1] ?? "")}</figcaption></figure>`
       ).join("");
       const html = `<!doctype html><meta charset="utf-8"><style>
         body{margin:0;background:#777;font:13px -apple-system,Helvetica,sans-serif}

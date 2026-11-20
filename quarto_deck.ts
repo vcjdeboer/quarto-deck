@@ -9,10 +9,23 @@
  * @module
  */
 import { z } from "npm:zod@4";
-import { type DeckOutline, outlineDeck } from "./outline.ts";
+import {
+  cutLines,
+  type DeckOutline,
+  issueSlide,
+  learningOutcomes,
+  outlineDeck,
+} from "./outline.ts";
+import {
+  CutViewSchema,
+  OutcomeReportSchema,
+  StyleIssueSchema,
+} from "./outline_schema.ts";
 import { checkDeck, contactSheets } from "./check.ts";
 import { MAC_CHROME } from "./chrome.ts";
-import { pdfPages, printDeck, shrinkPdf } from "./pdf.ts";
+import { shrinkPdf } from "./pdf.ts";
+import { exportDeckPdf, ExportPdfInfoSchema } from "./export.ts";
+import { serveDeck, ServeInfoSchema, stopServe } from "./serve.ts";
 import {
   type BuildRecord,
   hashInputs,
@@ -21,31 +34,60 @@ import {
   toolVersions,
 } from "./render.ts";
 import {
-  boxToPoints,
   type FigureRecord,
-  findCaptions,
-  inkBounds,
   pageTexts,
   parsePpm,
-  pdfGeometry,
-  pixelCrop,
   pngSize,
   renderPage,
   renderPpm,
   searchPages,
-  sha256File,
   slug,
-  type SourceRecord,
-  trimmedBox,
 } from "./sources.ts";
+import { refreshRefs, replaceNumberedList } from "./refs.ts";
+import { slideSpan, snapshot } from "./edit.ts";
+import {
+  citationFromMeta,
+  ensureSource,
+  drawGrid,
+  encodePng,
+  findPaper,
+  type FigCtx,
+  figureCrop,
+  figureFromImage,
+  type JournalFn,
+  referenceFromMeta,
+  registerSource,
+  verifyNumbers,
+} from "./figures.ts";
 import { captureSlides } from "./check.ts";
+import { editMethods, editResources } from "./edit.ts";
+import { deckPalette } from "./brand.ts";
+import {
+  templateFileSpecs,
+  templateMethods,
+  templateResources,
+} from "./templates.ts";
 import { imagePptx } from "./export_pptx.ts";
+import {
+  slideMapFiles,
+  slideMapMethods,
+  slideMapResources,
+} from "./slidemap.ts";
 import {
   insertSlide,
   paperSlide,
+  PATTERN_KINDS,
+  type PatternKind,
+  PATTERNS,
+  patternSlide,
   sectionSlide,
   statementSlide,
 } from "./slides.ts";
+
+const SLIDE_KINDS = ["paper", "section", "statement", ...PATTERN_KINDS] as [
+  string,
+  ...string[],
+];
 import {
   inventory,
   keynoteExport,
@@ -67,11 +109,17 @@ const GlobalArgsSchema = z.object({
   ),
   chrome: z.string().default(MAC_CHROME).describe("Chrome/Chromium binary"),
   quarto: z.string().default("quarto").describe("Quarto binary"),
+  highlightAuthor: z.string().optional().describe(
+    "Surname of the lecturer (e.g. 'van Dam'): bolded in every .src line and reference of a paper they co-authored",
+  ),
   sourcesDir: z.string().default("sources").describe(
     "Where source PDFs are kept, relative to dir",
   ),
   assetsDir: z.string().default("assets").describe(
     "Where slide images go, relative to dir",
+  ),
+  papersDir: z.string().default("~/papers").describe(
+    "Local paper library: <doi with / as _>.pdf with a .json of metadata; source_add/figure_crop register from here",
   ),
 });
 type GlobalArgs = z.infer<typeof GlobalArgsSchema>;
@@ -123,20 +171,10 @@ const OutlineSchema = z.object({
     slides: z.number(),
     minutes: z.number(),
   })),
-  styleIssues: z.array(z.object({
-    slide: z.number(),
-    title: z.string(),
-    rule: z.enum([
-      "one-figure",
-      "one-source",
-      "no-builds",
-      "notes",
-      "timing",
-      "doi",
-    ]),
-    level: z.enum(["rule", "hint"]),
-    message: z.string(),
-  })),
+  styleIssues: z.array(StyleIssueSchema),
+  suppressed: z.array(StyleIssueSchema),
+  outcomes: OutcomeReportSchema.nullable(),
+  cut: CutViewSchema,
 });
 
 const BuildSchema = z.object({
@@ -159,12 +197,17 @@ const SlideCheckSchema = z.object({
   fragments: z.number(),
   overflowPx: z.number(),
   overflowElement: z.string(),
+  logoOverlapPx: z.number().optional(),
+  logoOverlapElement: z.string().optional(),
+  logoFitMaxHeight: z.number().optional(),
 });
 
 const CheckSchema = z.object({
   html: z.string(),
   slideCount: z.number(),
   overflowing: z.array(SlideCheckSchema),
+  logoOverlaps: z.array(SlideCheckSchema).optional(),
+  menuCoveredBy: z.string().nullable().optional(),
   slides: z.array(SlideCheckSchema),
   width: z.number(),
   height: z.number(),
@@ -172,14 +215,7 @@ const CheckSchema = z.object({
   checkedAt: z.string(),
 });
 
-const PdfInfoSchema = z.object({
-  path: z.string(),
-  pages: z.number().nullable(),
-  bytes: z.number(),
-  rawBytes: z.number(),
-  shrunk: z.boolean(),
-  exportedAt: z.string(),
-});
+const PdfInfoSchema = ExportPdfInfoSchema;
 
 const SourceSchema = z.object({
   key: z.string(),
@@ -195,6 +231,15 @@ const SourceSchema = z.object({
   captions: z.array(
     z.object({ page: z.number(), label: z.string(), text: z.string() }),
   ),
+  meta: z.object({
+    authors: z.array(z.string()),
+    title: z.string().nullable(),
+    journal: z.string().nullable(),
+    year: z.number().nullable(),
+    volume: z.string().nullable(),
+    page: z.string().nullable(),
+  }).optional(),
+  reference: z.string().nullable().optional(),
   addedAt: z.string(),
 });
 
@@ -223,11 +268,78 @@ const FigureSchema = z.object({
   requestedBoxPt: BoxSchema,
   trimmed: z.boolean(),
   dpi: z.number(),
+  pxPerPt: z.number().optional().describe(
+    "dpi/72: pixel (px,py) in the PNG is point (boxPt.x + px/pxPerPt, boxPt.y + py/pxPerPt)",
+  ),
+  anchor: z.record(z.string(), z.unknown()).optional(),
+  anchorEdges: z.record(z.string(), z.string()).optional(),
   path: z.string(),
   widthPx: z.number(),
   heightPx: z.number(),
   sha256: z.string(),
   createdAt: z.string(),
+});
+
+const ImageSchema = z.object({
+  label: z.string(),
+  section: z.string(),
+  original: z.string(),
+  kept: z.string(),
+  sourceSha256: z.string(),
+  imageWidthPx: z.number(),
+  imageHeightPx: z.number(),
+  /** EXIF orientation applied before the crop (1 = none). */
+  exifOrientation: z.number().optional(),
+  boxPx: BoxSchema.nullable(),
+  credit: z.string(),
+  rights: z.string().nullable(),
+  path: z.string(),
+  widthPx: z.number(),
+  heightPx: z.number(),
+  sha256: z.string(),
+  createdAt: z.string(),
+});
+
+const NumbersSchema = z.object({
+  slides: z.array(z.object({
+    title: z.string(),
+    file: z.string(),
+    line: z.number(),
+    doi: z.string().nullable(),
+    paper: z.string().nullable(),
+    note: z.string().nullable(),
+    numbers: z.array(z.object({
+      text: z.string(),
+      value: z.string(),
+      unit: z.string(),
+      where: z.enum(["shown", "src", "notes"]),
+      status: z.enum(["found", "number-only", "not-found"]),
+      sentence: z.string().nullable(),
+    })),
+  })),
+  checkedAt: z.string(),
+});
+
+const AnchorSchema = z.object({
+  from: z.string().describe(
+    "Word at the figure's top-left, usually the panel label ('c'); a phrase or /regex/",
+  ),
+  to: z.string().optional().describe(
+    "Word just below the figure, usually the caption start ('Figure 3'); excluded",
+  ),
+  left: z.string().optional().describe("Word at the left edge (kept)"),
+  right: z.string().optional().describe(
+    "Word at the right edge (kept); default: the next panel label on the row",
+  ),
+  near: z.object({ x: z.number(), y: z.number() }).optional().describe(
+    "Pick the 'from' match nearest this point (pt) when it occurs more than once",
+  ),
+  pad: z.number().min(0).optional().describe("Margin in points (default 4)"),
+  w: z.number().positive().optional().describe("Width in pt instead of right"),
+  h: z.number().positive().optional().describe("Height in pt instead of to"),
+  panels: z.enum(["one", "all"]).optional().describe(
+    "one (default): stop at the next panel label below/right; all: ignore panel labels and run to `to` (several panels, e.g. Fig. 1a-b)",
+  ),
 });
 
 const JournalEntrySchema = z.object({
@@ -294,7 +406,7 @@ const PptxInfoSchema = z.object({
 });
 
 const SlideRecordSchema = z.object({
-  kind: z.enum(["paper", "section", "statement"]),
+  kind: z.enum(SLIDE_KINDS),
   file: z.string(),
   title: z.string(),
   figure: z.string().optional(),
@@ -341,19 +453,9 @@ function deckKey(path: string): string {
   return slug((path.split("/").pop() ?? "deck").replace(/\.[^.]+$/, ""));
 }
 
-/** Latest record of a registered source, or a clear error. */
-async function requireSource(
-  ctx: DeckContext,
-  key: string,
-): Promise<SourceRecord> {
-  const rec = await ctx.readResource?.(`source-${slug(key)}`) as
-    | SourceRecord
-    | null;
-  if (!rec) {
-    throw new Error(`source "${key}" not registered — run source_add first`);
-  }
-  return rec;
-}
+/** Journal adapter for the figure methods in figures.ts. */
+const figJournal: JournalFn = (c, ...e) => journal(c as DeckContext, ...e);
+const figCtx = (ctx: DeckContext) => ctx as unknown as FigCtx;
 
 /** True when `source` already contains exactly this line (ignoring edge spaces). */
 export function hasLine(source: string, line: string): boolean {
@@ -375,14 +477,18 @@ export function outlineSummary(o: DeckOutline): string {
       Math.round(o.notesCoverage * 100)
     }%, ` +
     `${o.checks.length} CHECK, ${o.missingImages.length} missing images, ` +
+    (o.missingIncludes.length
+      ? `${o.missingIncludes.length} missing files, `
+      : "") +
     `${o.styleIssues.filter((x) => x.level === "rule").length} style issues ` +
-    `(+${o.styleIssues.filter((x) => x.level === "hint").length} hints)`;
+    `(+${o.styleIssues.filter((x) => x.level === "hint").length} hints, ` +
+    `${o.suppressed?.length ?? 0} suppressed)`;
 }
 
 /** Model definition. */
 export const model = {
   type: "@vcjdeboer/quarto-deck/deck",
-  version: "2026.10.23.2",
+  version: "2026.11.20.1",
   upgrades: [
     {
       toVersion: "2026.10.23.1",
@@ -396,6 +502,12 @@ export const model = {
         "Planned minutes per section in outline; global arguments unchanged",
       upgradeAttributes: (old: Record<string, unknown>) => old,
     },
+    {
+      toVersion: "2026.11.20.1",
+      description:
+        "Deck tooling (export_pdf, serve, slide_map, edits, templates); new global argument papersDir has a default",
+      upgradeAttributes: (old: Record<string, unknown>) => old,
+    },
   ],
   globalArguments: GlobalArgsSchema,
   reports: ["@vcjdeboer/quarto-deck/deck-summary"],
@@ -405,6 +517,25 @@ export const model = {
       schema: OutlineSchema,
       lifetime: "infinite" as const,
       garbageCollection: 20,
+    },
+    refsUpdate: {
+      description:
+        "refs_update: the .src / Ref: lines rebuilt (or that would be) from paper metadata",
+      schema: z.object({
+        applied: z.boolean(),
+        changes: z.array(z.object({
+          file: z.string(),
+          line: z.number(),
+          slide: z.string(),
+          from: z.string(),
+          to: z.string(),
+        })),
+        skipped: z.array(z.string()),
+        backup: z.string().nullable(),
+        at: z.string(),
+      }),
+      lifetime: "infinite" as const,
+      garbageCollection: 10,
     },
     build: {
       description: "Record of a Quarto render: input hash, versions, warnings",
@@ -445,6 +576,19 @@ export const model = {
       lifetime: "infinite" as const,
       garbageCollection: 500,
     },
+    image: {
+      description:
+        "An image (screenshot, publisher figure, photo) cropped into the deck assets, with credit and rights",
+      schema: ImageSchema,
+      lifetime: "infinite" as const,
+      garbageCollection: 10,
+    },
+    numbers: {
+      description: "Numbers on slides checked against the cited paper's text",
+      schema: NumbersSchema,
+      lifetime: "30d",
+      garbageCollection: 5,
+    },
     slide: {
       description: "A slide written from a house pattern",
       schema: SlideRecordSchema,
@@ -478,10 +622,20 @@ export const model = {
       garbageCollection: 10,
     },
     pdfInfo: {
-      description: "Exported PDF: path, pages, size",
+      description:
+        "Exported PDF hand-out: parts (path, pages, size, first/last title), verification against the live slide count",
       schema: PdfInfoSchema,
       lifetime: "infinite" as const,
       garbageCollection: 10,
+    },
+    ...editResources,
+    ...slideMapResources,
+    ...templateResources,
+    serveInfo: {
+      description: "Local static server for the deck folder and the deck URLs",
+      schema: ServeInfoSchema,
+      lifetime: "7d",
+      garbageCollection: 3,
     },
   },
   files: {
@@ -517,6 +671,8 @@ export const model = {
       lifetime: "infinite" as const,
       garbageCollection: 3,
     },
+    ...slideMapFiles,
+    ...templateFileSpecs,
   },
   methods: {
     outline: {
@@ -528,12 +684,19 @@ export const model = {
         ctx: DeckContext,
       ): Promise<{ dataHandles: Handle[] }> => {
         const g = ctx.globalArgs;
-        const o = outlineDeck(g.dir, g.main, g.slotMinutes ?? null);
+        const o = outlineDeck(g.dir, g.main, g.slotMinutes ?? null, g.highlightAuthor);
         ctx.logger.info(outlineSummary(o));
+        for (const m of o.missingIncludes) {
+          ctx.logger.info("missing file: {m}", { m });
+        }
         for (const x of o.styleIssues.filter((i) => i.level === "rule")) {
-          ctx.logger.info('style: slide {slide} "{title}": {message}', {
-            ...x,
-          });
+          ctx.logger.info(
+            'style [{id}] {at} "{title}" ({file}:{line}): {message}',
+            { ...x, at: issueSlide(x) },
+          );
+        }
+        for (const line of cutLines(o.cut)) {
+          ctx.logger.info("time: {line}", { line });
         }
         const h = await ctx.writeResource("outline", "outline", { ...o });
         return { dataHandles: [h] };
@@ -552,7 +715,7 @@ export const model = {
         ctx: DeckContext,
       ): Promise<{ dataHandles: Handle[] }> => {
         const g = ctx.globalArgs;
-        const o = outlineDeck(g.dir, g.main, g.slotMinutes ?? null);
+        const o = outlineDeck(g.dir, g.main, g.slotMinutes ?? null, g.highlightAuthor);
         const inputs = renderInputs(g.dir, o);
         const inputHash = await hashInputs(g.dir, inputs);
         const html = htmlPath(g.dir, g.main);
@@ -644,11 +807,35 @@ export const model = {
             el: s.overflowElement,
           });
         }
-        ctx.logger.info("{n} slides, {o} overflowing, {k} sheets", {
-          n: check.slideCount,
-          o: check.overflowing.length,
-          k: nSheets,
-        });
+        if (check.menuCoveredBy) {
+          ctx.logger.info(
+            "warning: the menu button (three stripes) is covered by {el}; clicks do not reach it",
+            { el: check.menuCoveredBy },
+          );
+        }
+        for (const s of check.logoOverlaps) {
+          ctx.logger.info(
+            'slide {n} "{t}": {el} runs under the logo ({px}px){fit}',
+            {
+              n: s.n,
+              t: s.title,
+              px: s.logoOverlapPx,
+              el: s.logoOverlapElement,
+              fit: s.logoFitMaxHeight
+                ? `; slide_edit slide=${s.n} maxHeight=${s.logoFitMaxHeight} clears it`
+                : "",
+            },
+          );
+        }
+        ctx.logger.info(
+          "{n} slides, {o} overflowing, {l} under the logo, {k} sheets",
+          {
+            n: check.slideCount,
+            o: check.overflowing.length,
+            l: check.logoOverlaps.length,
+            k: nSheets,
+          },
+        );
         handles.unshift(
           await ctx.writeResource("check", "check", {
             ...check,
@@ -661,140 +848,215 @@ export const model = {
     },
     export_pdf: {
       description:
-        "Print the built deck to PDF with headless Chrome and (macOS) shrink it with a Quartz filter for distribution",
+        "Hand-out PDF from screenshots: walk the live reveal.js slides in headless Chrome (all fragments shown, no controls), one 1280x720 page per slide, optionally split into parts; verifies page count = live slide count and writes a contact sheet per part",
       arguments: z.object({
-        out: z.string().optional().describe(
-          "Output PDF path (default: next to the deck)",
+        split: z.union([z.array(z.number().int().positive()), z.string()])
+          .optional().describe(
+            'Split into parts: a list of 1-based start pages ([1,30] or "30,60"), "sections" (at # dividers) or "at:<n>"',
+          ),
+        suffix: z.string().optional().describe(
+          "Appended to file names: 18nov2026 -> glycolysis_18nov2026.pdf / glycolysis_part1_18nov2026.pdf",
         ),
-        shrink: z.boolean().default(true),
-        quality: z.number().min(0.1).max(1).default(0.75),
-        dpi: z.number().default(150),
-        maxPx: z.number().default(1600),
-        store: z.boolean().default(true).describe(
-          "Also keep the PDF as swamp data",
+        outDir: z.string().optional().describe(
+          "Where the PDFs and contact sheets go (default: the deck folder)",
+        ),
+        scale: z.number().min(1).max(4).default(2).describe(
+          "Device scale factor (2 -> 2560x1440 per page)",
+        ),
+        format: z.enum(["png", "jpeg"]).default("png").describe(
+          "Screenshot format; jpeg gives much smaller PDFs",
+        ),
+        quality: z.number().min(10).max(100).default(90).describe(
+          "JPEG quality (format=jpeg only)",
+        ),
+        shrink: z.boolean().default(false).describe(
+          "Also recompress each PDF with the macOS Quartz filter",
+        ),
+        sheets: z.boolean().default(true).describe(
+          "Write a contact sheet PNG per part next to its PDF",
+        ),
+        store: z.boolean().default(false).describe(
+          "Also keep the PDFs as swamp data",
         ),
       }),
       execute: async (
         args: {
-          out?: string;
-          shrink: boolean;
+          split?: string | number[];
+          suffix?: string;
+          outDir?: string;
+          scale: number;
+          format: "png" | "jpeg";
           quality: number;
-          dpi: number;
-          maxPx: number;
+          shrink: boolean;
+          sheets: boolean;
           store: boolean;
         },
         ctx: DeckContext,
       ): Promise<{ dataHandles: Handle[] }> => {
         const g = ctx.globalArgs;
         const html = htmlPath(g.dir, g.main);
-        const out = args.out ?? html.replace(/\.html$/, ".pdf");
-        const tmp = await Deno.makeTempDir({ prefix: "quarto-deck-pdf-" });
-        try {
-          const raw = `${tmp}/raw.pdf`;
-          await printDeck({ html, out: raw, chrome: g.chrome });
-          const rawBytes = (await Deno.stat(raw)).size;
-          let shrunk = false;
-          if (args.shrink && Deno.build.os === "darwin") {
-            const small = `${tmp}/small.pdf`;
-            const size = await shrinkPdf({
-              input: raw,
-              out: small,
-              quality: args.quality,
-              dpi: args.dpi,
-              maxPx: args.maxPx,
-            });
-            if (size < rawBytes) {
-              await Deno.copyFile(small, out);
-              shrunk = true;
-            }
+        await Deno.stat(html).catch(() => {
+          throw new Error(`${html} not found — run render first`);
+        });
+        const r = await exportDeckPdf({
+          html,
+          outDir: args.outDir ?? g.dir,
+          base: html.split("/").pop()!.replace(/\.html$/, ""),
+          split: args.split,
+          suffix: args.suffix,
+          scale: args.scale,
+          format: args.format,
+          quality: args.quality,
+          chrome: g.chrome,
+          sheets: args.sheets,
+          log: (m, p) => ctx.logger.info(m, p),
+        });
+        if (args.shrink && Deno.build.os === "darwin") {
+          for (const p of r.parts) {
+            const small = p.path.replace(/\.pdf$/, ".shrunk.tmp.pdf");
+            const size = await shrinkPdf({ input: p.path, out: small });
+            if (size < p.bytes) {
+              await Deno.rename(small, p.path);
+              p.bytes = size;
+            } else await Deno.remove(small).catch(() => {});
           }
-          if (!shrunk) await Deno.copyFile(raw, out);
-          const bytes = (await Deno.stat(out)).size;
-          const pages = await pdfPages(out);
-          ctx.logger.info("PDF {out}: {p} pages, {mb} MB (raw {raw} MB)", {
-            out,
-            p: pages,
-            mb: (bytes / 1e6).toFixed(1),
-            raw: (rawBytes / 1e6).toFixed(1),
-          });
-          const handles = [
-            await ctx.writeResource("pdfInfo", "pdf-info", {
-              path: out,
-              pages,
-              bytes,
-              rawBytes,
-              shrunk,
-              exportedAt: new Date().toISOString(),
-            }),
-          ];
-          if (args.store) {
+        }
+        for (const p of r.parts) {
+          ctx.logger.info(
+            'part {k}: {path}, {pages} pages, {mb} MB, "{first}" .. "{last}"',
+            {
+              k: p.part,
+              path: p.path,
+              pages: p.pages,
+              mb: (p.bytes / 1e6).toFixed(1),
+              first: p.firstTitle,
+              last: p.lastTitle,
+            },
+          );
+        }
+        ctx.logger.info(
+          "verified: {pages} pages = {n} live slides{rep}",
+          {
+            pages: r.verification.pagesTotal,
+            n: r.liveSlides,
+            rep: r.verification.repeatedPages.length
+              ? `; WARNING identical consecutive pages: ${
+                r.verification.repeatedPages.join(", ")
+              }`
+              : "",
+          },
+        );
+        const { slides: _slides, ...info } = r;
+        const handles = [
+          await ctx.writeResource("pdfInfo", "pdf-info", {
+            ...info,
+            path: r.parts[0].path,
+            pages: r.verification.pagesTotal,
+            bytes: r.parts.reduce((a, p) => a + p.bytes, 0),
+            exportedAt: new Date().toISOString(),
+          }),
+        ];
+        if (args.store) {
+          for (const p of r.parts) {
             handles.push(
-              await ctx.createFileWriter("pdf", "deck-pdf").writeAll(
-                await Deno.readFile(out),
+              await ctx.createFileWriter("pdf", `deck-pdf-${p.part}`).writeAll(
+                await Deno.readFile(p.path),
               ),
             );
           }
-          return { dataHandles: handles };
-        } finally {
-          await Deno.remove(tmp, { recursive: true }).catch(() => {});
         }
+        return { dataHandles: handles };
+      },
+    },
+    serve: {
+      description:
+        "Serve the deck folder on http://127.0.0.1:<port> (reuse a server already serving it, else start a detached one) and return the URLs of the built HTML decks; stop=true stops it",
+      arguments: z.object({
+        port: z.number().int().min(1024).max(65535).default(8765),
+        python: z.string().default("python3").describe(
+          "Python used for the static server (python -m http.server)",
+        ),
+        stop: z.boolean().default(false).describe(
+          "Stop this deck's server on the port instead of starting one",
+        ),
+      }),
+      execute: async (
+        args: { port: number; python: string; stop: boolean },
+        ctx: DeckContext,
+      ): Promise<{ dataHandles: Handle[] }> => {
+        const g = ctx.globalArgs;
+        if (args.stop) {
+          const stopped = await stopServe({ dir: g.dir, port: args.port });
+          ctx.logger.info("port {port}: {what}", {
+            port: args.port,
+            what: stopped.length
+              ? `stopped pid ${stopped.join(", ")}`
+              : "no server was running",
+          });
+          return {
+            dataHandles: [
+              await ctx.writeResource("serveInfo", "serve", {
+                dir: g.dir.replace(/\/$/, ""),
+                port: args.port,
+                reused: false,
+                pid: null,
+                main: null,
+                urls: [],
+                servedAt: new Date().toISOString(),
+                stopped,
+              }),
+            ],
+          };
+        }
+        const r = await serveDeck({
+          dir: g.dir,
+          port: args.port,
+          mainHtml: htmlPath(g.dir, g.main).split("/").pop(),
+          python: args.python,
+        });
+        ctx.logger.info("{how} server on port {port}: {url}", {
+          how: r.reused ? "reused" : `started (pid ${r.pid})`,
+          port: r.port,
+          url: r.main ?? r.urls[0].url,
+        });
+        for (const u of r.urls) {
+          ctx.logger.info("{url} -> {status}", { ...u });
+        }
+        return {
+          dataHandles: [
+            await ctx.writeResource("serveInfo", "serve", {
+              ...r,
+              servedAt: new Date().toISOString(),
+            }),
+          ],
+        };
       },
     },
     source_add: {
       description:
-        "Register a paper PDF as a deck source: copy it into sourcesDir, record citation, DOI, checksum, pages and the figure/table caption index",
+        "Register a paper PDF as a deck source: copy it into sourcesDir, record citation, DOI, checksum, pages and the figure/table caption index. Without pdf, finds <doi with / as _>.pdf (and its .json metadata) in papersDir by doi or key",
       arguments: z.object({
-        pdf: z.string().describe("Path of the PDF"),
-        key: z.string().describe("Short key, e.g. sbarra1959"),
-        citation: z.string().describe(
-          "Source line as it should appear on the slide, e.g. 'Sbarra & Karnovsky, J Biol Chem 1959'",
+        pdf: z.string().optional().describe(
+          "Path of the PDF; omit to look it up in papersDir by doi or key",
+        ),
+        key: z.string().optional().describe(
+          "Short key, e.g. sbarra1959; default first author + year from the .json",
+        ),
+        citation: z.string().optional().describe(
+          "Source line as it should appear on the slide, e.g. 'Sbarra & Karnovsky, J Biol Chem 1959'; default from the .json",
         ),
         doi: z.string().optional(),
       }),
       execute: async (
-        args: { pdf: string; key: string; citation: string; doi?: string },
+        args: { pdf?: string; key?: string; citation?: string; doi?: string },
         ctx: DeckContext,
       ): Promise<{ dataHandles: Handle[] }> => {
-        const g = ctx.globalArgs;
-        const key = slug(args.key);
-        const storedRel = `${g.sourcesDir}/${key}.pdf`;
-        const stored = `${g.dir}/${storedRel}`;
-        await Deno.mkdir(`${g.dir}/${g.sourcesDir}`, { recursive: true });
-        const src = await Deno.realPath(args.pdf);
-        if (src !== await Deno.realPath(stored).catch(() => "")) {
-          await Deno.copyFile(src, stored);
-        }
-        const { pages, sizes } = await pdfGeometry(stored);
-        const texts = await pageTexts(stored);
-        const rec: SourceRecord = {
-          key,
-          citation: args.citation,
-          doi: args.doi ?? null,
-          original: src,
-          stored: storedRel,
-          sha256: await sha256File(stored),
-          pages,
-          pageSizes: sizes,
-          captions: findCaptions(texts),
-          addedAt: new Date().toISOString(),
-        };
-        ctx.logger.info("{key}: {p} pages, {c} captions", {
-          key,
-          p: pages,
-          c: rec.captions.length,
-        });
-        for (const c of rec.captions) {
-          ctx.logger.info("  p{page} {label} {text}", { ...c });
-        }
-        const h = await ctx.writeResource("source", `source-${key}`, {
-          ...rec,
-        });
-        const j = await journal(ctx, {
-          kind: "source",
-          text: `added ${args.citation} (${pages} pages) from ${src}`,
-          ref: key,
-        });
-        return { dataHandles: [h, j] };
+        const { handles } = await registerSource(
+          figCtx(ctx),
+          figJournal,
+          args,
+        );
+        return { dataHandles: handles };
       },
     },
     source_find: {
@@ -805,7 +1067,11 @@ export const model = {
         args: { key: string; query: string },
         ctx: DeckContext,
       ): Promise<{ dataHandles: Handle[] }> => {
-        const rec = await requireSource(ctx, args.key);
+        const { rec, handles } = await ensureSource(
+          figCtx(ctx),
+          figJournal,
+          args.key,
+        );
         const max = 50;
         // ask for one more than kept, so a capped result is known to be capped
         const found = searchPages(
@@ -824,7 +1090,7 @@ export const model = {
           hits,
           truncated: found.length > max,
         });
-        return { dataHandles: [h] };
+        return { dataHandles: [...handles, h] };
       },
     },
     source_page: {
@@ -837,20 +1103,51 @@ export const model = {
           "72 dpi: 1 px = 1 PDF point, so pixel positions are crop points",
         ),
         outPng: z.string().optional(),
+        grid: z.boolean().default(true).describe(
+          "Draw a coordinate grid in PDF points (line every 50 pt, labelled every 100 pt) to read crop boxes off",
+        ),
       }),
       execute: async (
-        args: { key: string; page: number; dpi: number; outPng?: string },
+        args: {
+          key: string;
+          page: number;
+          dpi: number;
+          outPng?: string;
+          grid: boolean;
+        },
         ctx: DeckContext,
       ): Promise<{ dataHandles: Handle[] }> => {
-        const rec = await requireSource(ctx, args.key);
+        const { rec, handles } = await ensureSource(
+          figCtx(ctx),
+          figJournal,
+          args.key,
+        );
         if (args.page > rec.pages) {
           throw new Error(`${rec.key} has ${rec.pages} pages`);
         }
-        const png = await renderPage({
-          pdf: `${ctx.globalArgs.dir}/${rec.stored}`,
-          page: args.page,
-          dpi: args.dpi,
-        });
+        const pdf = `${ctx.globalArgs.dir}/${rec.stored}`;
+        let png: Uint8Array;
+        const size = rec.pageSizes.find((p) => p.page === args.page);
+        if (args.grid && size) {
+          const s = args.dpi / 72;
+          const img = parsePpm(
+            await renderPpm({
+              pdf,
+              page: args.page,
+              dpi: args.dpi,
+              cropPx: {
+                x: 0,
+                y: 0,
+                W: Math.ceil(size.width * s),
+                H: Math.ceil(size.height * s),
+              },
+            }),
+          );
+          drawGrid(img, args.dpi);
+          png = await encodePng(img);
+        } else {
+          png = await renderPage({ pdf, page: args.page, dpi: args.dpi });
+        }
         if (args.outPng) await Deno.writeFile(args.outPng, png);
         const { width, height } = pngSize(png);
         ctx.logger.info("{key} p{page}: {w}x{h}px at {dpi} dpi", {
@@ -865,113 +1162,306 @@ export const model = {
           `page-${rec.key}-p${args.page}`,
         )
           .writeAll(png);
-        return { dataHandles: [h] };
+        return { dataHandles: [...handles, h] };
       },
     },
     figure_crop: {
       description:
-        "Crop a figure/table from a source page into assets/<section>/<key>_<label>.png and record its provenance (page, box, dpi, checksums)",
+        "Crop a figure/table from a source page into assets/<section>/<key>_<label>.png and record its provenance (page, box, dpi, checksums). Place the box with anchor words (panel label → caption start) instead of guessing; preview=true draws the box on the page first. An unregistered key or DOI found in papersDir is registered on the fly",
       arguments: z.object({
-        key: z.string(),
+        key: z.string().describe(
+          "Source key, or a DOI / key found in papersDir",
+        ),
         page: z.number().int().positive(),
-        box: BoxSchema.describe(
+        box: BoxSchema.optional().describe(
           "Crop box from the top-left: x, y, w, h in PDF points, or all four as fractions (0–1) of the page",
+        ),
+        anchor: AnchorSchema.optional().describe(
+          "Instead of box: words that bound the figure, resolved with pdftotext -bbox-layout",
         ),
         label: z.string().describe("e.g. table1, fig2D"),
         section: z.string().describe("Asset sub-folder, e.g. history"),
-        dpi: z.number().default(200),
+        dpi: z.number().default(200).describe(
+          "Output resolution; the PNG always has dpi/72 px per point, trimmed or not",
+        ),
         trim: z.boolean().default(false).describe(
           "Shrink the box to the ink inside it (give a generous box)",
         ),
         pad: z.number().min(0).default(4).describe(
           "Margin kept around the ink when trimming, in points",
         ),
+        preview: z.boolean().default(false).describe(
+          "Draw the box (red) and anchors (blue) on the page and write that PNG instead of cropping",
+        ),
+        previewDpi: z.number().default(100),
+        outPng: z.string().optional().describe(
+          "preview: where to write the PNG (default a temp file, logged)",
+        ),
       }),
       execute: async (
         args: {
           key: string;
           page: number;
-          box: { x: number; y: number; w: number; h: number };
+          box?: { x: number; y: number; w: number; h: number };
+          anchor?: z.infer<typeof AnchorSchema>;
           label: string;
           section: string;
           dpi: number;
           trim: boolean;
           pad: number;
+          preview?: boolean;
+          previewDpi?: number;
+          outPng?: string;
         },
         ctx: DeckContext,
       ): Promise<{ dataHandles: Handle[] }> => {
+        return await figureCrop(figCtx(ctx), figJournal, {
+          ...args,
+          preview: args.preview ?? false,
+          previewDpi: args.previewDpi ?? 100,
+        });
+      },
+    },
+    figure_from_image: {
+      description:
+        "Crop an image that is not a paper PDF (screenshot, publisher gr1_lrg.jpg, photo) into assets/<section>/<label>.png with ffmpeg; keeps the original in sourcesDir/images and records credit, rights and the pixel box",
+      arguments: z.object({
+        image: z.string().describe("PNG or JPEG path (spaces fine)"),
+        box: BoxSchema.optional().describe(
+          "Crop box in pixels from the top-left, or all four as fractions (0–1); omit for the whole image",
+        ),
+        label: z.string().describe("File name, e.g. newspaper1924_lactate"),
+        section: z.string().describe("Asset sub-folder"),
+        credit: z.string().describe(
+          "Who made it / where from, e.g. 'A. van Dam, unpublished' or 'newspaper photo, 1924'",
+        ),
+        rights: z.string().optional().describe(
+          "Rights note, e.g. 'teaching use only'",
+        ),
+      }),
+      execute: async (
+        args: {
+          image: string;
+          box?: { x: number; y: number; w: number; h: number };
+          label: string;
+          section: string;
+          credit: string;
+          rights?: string;
+        },
+        ctx: DeckContext,
+      ): Promise<{ dataHandles: Handle[] }> => {
+        return await figureFromImage(figCtx(ctx), figJournal, args);
+      },
+    },
+    verify_numbers: {
+      description:
+        "Check the numbers with units or percent on a slide (shown text, .src, notes) against the text of the paper in the notes' DOI (registered source or papersDir). Read-only; lists each number as found, number-only (unit differs) or not-found, with the sentence",
+      arguments: z.object({
+        slide: z.string().optional().describe("Title substring"),
+        file: z.string().optional().describe(
+          "Instead of slide: every slide in this .qmd (relative to dir)",
+        ),
+      }),
+      execute: async (
+        args: { slide?: string; file?: string },
+        ctx: DeckContext,
+      ): Promise<{ dataHandles: Handle[] }> => {
         const g = ctx.globalArgs;
-        const rec = await requireSource(ctx, args.key);
-        const size = rec.pageSizes.find((p) => p.page === args.page);
-        if (!size) throw new Error(`${rec.key} has no page ${args.page}`);
-        const requestedBoxPt = boxToPoints(args.box, size);
-        let boxPt = requestedBoxPt;
-        if (args.trim) {
-          const measureDpi = 144;
-          const ink = inkBounds(parsePpm(
-            await renderPpm({
-              pdf: `${g.dir}/${rec.stored}`,
-              page: args.page,
-              dpi: measureDpi,
-              cropPx: pixelCrop(requestedBoxPt, measureDpi),
-            }),
-          ));
-          if (!ink) {
-            throw new Error(`the box on ${rec.key} p${args.page} is blank`);
-          }
-          boxPt = trimmedBox(requestedBoxPt, ink, measureDpi, args.pad);
+        if (!args.slide === !args.file) {
+          throw new Error("give slide (title substring) or file");
         }
-        const png = await renderPage({
-          pdf: `${g.dir}/${rec.stored}`,
-          page: args.page,
-          dpi: args.dpi,
-          cropPx: pixelCrop(boxPt, args.dpi),
-        });
-        const label = slug(args.label);
-        const rel = `${g.assetsDir}/${
-          slug(args.section)
-        }/${rec.key}_${label}.png`;
-        await Deno.mkdir(`${g.dir}/${g.assetsDir}/${slug(args.section)}`, {
-          recursive: true,
-        });
-        await Deno.writeFile(`${g.dir}/${rel}`, png);
-        const { width, height } = pngSize(png);
-        const fig: FigureRecord = {
-          key: rec.key,
-          label,
-          citation: rec.citation,
-          doi: rec.doi,
-          sourceSha256: rec.sha256,
-          page: args.page,
-          boxPt,
-          requestedBoxPt,
-          trimmed: args.trim,
-          dpi: args.dpi,
-          path: rel,
-          widthPx: width,
-          heightPx: height,
-          sha256: await sha256File(`${g.dir}/${rel}`),
-          createdAt: new Date().toISOString(),
-        };
-        ctx.logger.info("{path}: {w}x{h}px from {key} p{page}", {
-          path: rel,
-          w: width,
-          h: height,
-          key: rec.key,
-          page: args.page,
-        });
-        const h = await ctx.writeResource(
-          "figure",
-          `figure-${rec.key}-${label}`,
-          { ...fig },
+        const o = outlineDeck(g.dir, g.main, null);
+        const want = args.slide?.toLowerCase();
+        const slides = o.slides.filter((s) =>
+          want ? s.title.toLowerCase().includes(want) : s.file === args.file
+        );
+        if (!slides.length) {
+          throw new Error(`no slide matches ${args.slide ?? args.file}`);
+        }
+        if (want && slides.length > 1) {
+          const exact = slides.filter((s) => s.title.toLowerCase() === want);
+          if (exact.length !== 1) {
+            throw new Error(
+              `slide "${args.slide}" matches ${slides.length} slides: ${
+                slides.map((s) => `"${s.title}" (${s.file}:${s.line})`).join(
+                  "; ",
+                )
+              } — give more of the title, or file=`,
+            );
+          }
+          slides.splice(0, slides.length, ...exact);
+        }
+        return await verifyNumbers(
+          figCtx(ctx),
+          slides,
+          `numbers-${slug(args.slide ?? args.file!)}`,
+        );
+      },
+    },
+    outcomes_set: {
+      description:
+        "Set the learning outcomes: rewrite the numbered list on the 'Learning outcomes' slide and on 'Learning outcomes revisited' (or .lo / .lo-done) with the same items, so the two never differ. Bold **key terms** feed the coverage check. Snapshot first; journals itself",
+      arguments: z.object({
+        items: z.array(z.string().min(1)).min(1).describe(
+          "The outcomes in order, markdown; bold the key terms",
+        ),
+      }),
+      execute: async (
+        args: { items: string[] },
+        ctx: DeckContext,
+      ): Promise<{ dataHandles: Handle[] }> => {
+        const g = ctx.globalArgs;
+        const o = outlineDeck(g.dir, g.main, null);
+        const r = learningOutcomes(o.slides);
+        const targets = [r?.opening, r?.closing]
+          .map((n) => o.slides.find((s) => s.n === n))
+          .filter((s): s is (typeof o.slides)[number] => !!s);
+        if (!targets.length) {
+          throw new Error(
+            "no 'Learning outcomes' slide (title, or .lo / .lo-done div) in the deck",
+          );
+        }
+        const files = [...new Set(targets.map((s) => s.file))];
+        const text: Record<string, string[]> = {};
+        for (const f of files) {
+          text[f] = (await Deno.readTextFile(`${g.dir}/${f}`)).split("\n");
+        }
+        // bottom-up within a file
+        for (const s of [...targets].sort((a, b) => b.line - a.line)) {
+          const next = o.slides.filter((x) => x.file === s.file && x.line > s.line)
+            .reduce<number | null>((m, x) => m === null || x.line < m ? x.line : m, null);
+          const span = slideSpan(text[s.file], s.line, next);
+          text[s.file] = replaceNumberedList(
+            text[s.file],
+            span.start,
+            span.end,
+            args.items,
+          );
+        }
+        const b = await snapshot(g.dir, files, "outcomes_set", "before outcomes_set");
+        for (const f of files) {
+          await Deno.writeTextFile(`${g.dir}/${f}`, text[f].join("\n"));
+        }
+        const after = learningOutcomes(
+          outlineDeck(g.dir, g.main, null).slides,
+        );
+        ctx.logger.info(
+          "{n} outcomes on {k} slide(s); lists match: {m}; snapshot {b}",
+          { n: args.items.length, k: targets.length, m: after?.match ?? "-", b: b.id },
         );
         const j = await journal(ctx, {
-          kind: "figure",
-          text:
-            `cropped ${args.label} from ${rec.citation}, p${args.page} → ${rel}`,
-          ref: `${rec.key}-${label}`,
+          kind: "change",
+          text: `outcomes_set: ${args.items.length} learning outcomes on ${
+            targets.map((s) => `"${s.title}"`).join(" and ")
+          }`,
+          ref: `backup ${b.id}`,
         });
-        return { dataHandles: [h, j] };
+        return { dataHandles: [j] };
+      },
+    },
+    refs_update: {
+      description:
+        "Bring the references of the existing slides into house style: for every slide whose notes cite one DOI with metadata in papersDir, rebuild the .src line (figure part kept) and the notes Ref: line from the paper's .json, with highlightAuthor in bold. apply=false (default) only lists the changes; apply=true writes them after a snapshot and journals itself",
+      arguments: z.object({
+        apply: z.boolean().default(false),
+      }),
+      execute: async (
+        args: { apply: boolean },
+        ctx: DeckContext,
+      ): Promise<{ dataHandles: Handle[] }> => {
+        const g = ctx.globalArgs;
+        const o = outlineDeck(g.dir, g.main, null);
+        const text: Record<string, string[]> = {};
+        for (const f of o.files) {
+          text[f] = (await Deno.readTextFile(`${g.dir}/${f}`)).split("\n");
+        }
+        const changed: Array<
+          { file: string; line: number; slide: string; from: string; to: string }
+        > = [];
+        const skipped: string[] = [];
+        // bottom-up per file, so line numbers above stay valid
+        const slides = [...o.slides].sort((a, b) =>
+          a.file === b.file ? b.line - a.line : a.file < b.file ? -1 : 1
+        );
+        for (const s of slides) {
+          const dois = [...new Set(s.dois.map((d) => d.toLowerCase()))];
+          if (!s.src.length && !s.refLines.length) continue;
+          if (dois.length !== 1) {
+            if (s.src.length) {
+              skipped.push(
+                `"${s.title}" (${s.file}:${s.line}): ${
+                  dois.length ? `${dois.length} DOIs` : "no DOI in the notes"
+                }`,
+              );
+            }
+            continue;
+          }
+          const p = await findPaper(g.papersDir ?? "~/papers", { doi: dois[0] })
+            .catch(() => null);
+          const meta = p?.meta;
+          const base = meta ? citationFromMeta(meta, g.highlightAuthor) : null;
+          const ref = meta ? referenceFromMeta(meta, g.highlightAuthor) : null;
+          if (!base || !ref) {
+            skipped.push(
+              `"${s.title}" (${s.file}:${s.line}): no metadata for ${dois[0]}`,
+            );
+            continue;
+          }
+          const lines = text[s.file];
+          const next = o.slides.filter((x) => x.file === s.file && x.line > s.line)
+            .reduce<number | null>((m, x) => m === null || x.line < m ? x.line : m, null);
+          const span = slideSpan(lines, s.line, next);
+          const r = refreshRefs(lines, span.start, span.end, base, ref, dois[0]);
+          text[s.file] = r.lines;
+          for (const c of r.changes) {
+            changed.push({
+              file: s.file,
+              line: c.line + 1,
+              slide: s.title,
+              from: c.from,
+              to: c.to,
+            });
+          }
+        }
+        changed.sort((a, b) => a.file === b.file ? a.line - b.line : a.file < b.file ? -1 : 1);
+        for (const c of changed) {
+          ctx.logger.info("{file}:{line} \"{slide}\"\n  - {from}\n  + {to}", { ...c });
+        }
+        for (const s of skipped) ctx.logger.info("skipped {s}", { s });
+        const files = [...new Set(changed.map((c) => c.file))];
+        let backup: string | null = null;
+        if (args.apply && files.length) {
+          const b = await snapshot(g.dir, files, "refs_update", "before refs_update");
+          backup = b.id;
+          for (const f of files) {
+            await Deno.writeTextFile(`${g.dir}/${f}`, text[f].join("\n"));
+          }
+        }
+        ctx.logger.info("{n} reference lines {how} in {f} files; {k} slides skipped{b}", {
+          n: changed.length,
+          how: args.apply ? "rewritten" : "would change (apply=true writes them)",
+          f: files.length,
+          k: skipped.length,
+          b: backup ? `; snapshot ${backup} (restore id=${backup} undoes it)` : "",
+        });
+        const h = await ctx.writeResource("refsUpdate", "refs-update", {
+          applied: args.apply,
+          changes: changed,
+          skipped,
+          backup,
+          at: new Date().toISOString(),
+        });
+        const handles = [h];
+        if (args.apply && changed.length) {
+          handles.push(
+            await journal(ctx, {
+              kind: "change",
+              text: `refs_update: ${changed.length} reference lines rebuilt from paper metadata in ${files.join(", ")}`,
+              ref: `backup ${backup}`,
+            }),
+          );
+        }
+        return { dataHandles: handles };
       },
     },
     journal: {
@@ -994,9 +1484,14 @@ export const model = {
     },
     slide_add: {
       description:
-        "Write a slide from a house pattern into a section file. paper = title is the message + ONE figure (from figure_crop) + one .src + notes with timing and full ref/DOI; section; statement",
+        "Write a slide from a house pattern into a section file. paper = title is the message + ONE figure (from figure_crop) + one .src + notes with timing and full ref/DOI; section; statement; diagram patterns (structured `spec`, colours from the deck's _brand.yml, neutral defaults without one): " +
+        PATTERN_KINDS.map((k) => `${k} = ${PATTERNS[k].what}`).join("; "),
       arguments: z.object({
-        kind: z.enum(["paper", "section", "statement"]),
+        kind: z.enum(SLIDE_KINDS),
+        spec: z.union([z.string(), z.record(z.string(), z.unknown())])
+          .optional().describe(
+            "Diagram patterns: the structured input (JSON), validated by the pattern; see README",
+          ),
         file: z.string().describe(
           "Section .qmd relative to dir (created if missing)",
         ),
@@ -1004,18 +1499,23 @@ export const model = {
           "paper: the message; section: section title; statement: the sentence (markdown ok)",
         ),
         figure: z.string().optional().describe(
-          "paper: '<key>-<label>' of a figure_crop record",
+          "paper: '<key>-<label>' of a figure_crop record, or 'image-<label>' of a figure_from_image record",
         ),
         image: z.string().optional().describe(
           "paper without a figure record: image path",
         ),
-        citation: z.string().optional(),
+        citation: z.string().optional().describe(
+          "Source line; only for an image without a registered paper. With a figure record of a registered paper the line is built from the paper's metadata",
+        ),
+        srcDetail: z.string().optional().describe(
+          "Appended to the source line: 'Fig. 2A,B. Skin fibroblasts from both patients'",
+        ),
         minutes: z.number().default(1),
         notes: z.string().default("").describe(
           "What you will say (speaker notes)",
         ),
         reference: z.string().optional().describe(
-          "Full reference for the notes",
+          "Full reference for the notes; only when the paper has no metadata. Otherwise it is built from the paper's .json (never typed from memory)",
         ),
         subtitle: z.string().optional(),
         maxHeight: z.number().optional(),
@@ -1025,12 +1525,14 @@ export const model = {
       }),
       execute: async (
         args: {
-          kind: "paper" | "section" | "statement";
+          kind: string;
+          spec?: string | Record<string, unknown>;
           file: string;
           title: string;
           figure?: string;
           image?: string;
           citation?: string;
+          srcDetail?: string;
           minutes: number;
           notes: string;
           reference?: string;
@@ -1041,12 +1543,26 @@ export const model = {
         ctx: DeckContext,
       ): Promise<{ dataHandles: Handle[] }> => {
         const g = ctx.globalArgs;
+        // colours from the deck's _brand.yml (neutral defaults without one)
+        const pal = await deckPalette(g.dir, g.main);
         let md: string;
         if (args.kind === "paper") {
           let image = args.image,
             citation = args.citation,
+            reference = args.reference,
             doi: string | null = null;
-          if (args.figure) {
+          if (args.figure?.startsWith("image-")) {
+            const img = await ctx.readResource?.(args.figure) as
+              | { path: string; credit: string }
+              | null;
+            if (!img) {
+              throw new Error(
+                `no image record "${args.figure}" — run figure_from_image first`,
+              );
+            }
+            image = img.path;
+            citation = citation ?? img.credit;
+          } else if (args.figure) {
             const fig = await ctx.readResource?.(`figure-${args.figure}`) as
               | FigureRecord
               | null;
@@ -1056,8 +1572,35 @@ export const model = {
               );
             }
             image = fig.path;
-            citation = citation ?? fig.citation;
             doi = fig.doi;
+            // the paper's metadata, never a typed reference
+            const src = await ctx.readResource?.(`source-${fig.key}`) as
+              | { meta?: Record<string, unknown> }
+              | null;
+            const meta = src?.meta as Parameters<typeof citationFromMeta>[0];
+            const cit = meta ? citationFromMeta(meta, g.highlightAuthor) : null;
+            if (cit) {
+              for (const [arg, v] of [["citation", args.citation], ["reference", args.reference]]) {
+                if (v) {
+                  ctx.logger.info(
+                    "{arg} ignored: built from the paper's metadata instead",
+                    { arg },
+                  );
+                }
+              }
+              citation = cit;
+              reference = referenceFromMeta(meta, g.highlightAuthor) ??
+                undefined;
+            } else {
+              citation = citation ?? fig.citation;
+              ctx.logger.info(
+                "warning: {key} has no metadata; source line and reference are as typed — check them against the paper",
+                { key: fig.key },
+              );
+            }
+          }
+          if (citation && args.srcDetail) {
+            citation = `${citation.replace(/[.,\s]+$/, "")}, ${args.srcDetail}`;
           }
           if (!image || !citation) {
             throw new Error("paper slide needs figure, or image + citation");
@@ -1068,28 +1611,97 @@ export const model = {
             citation,
             minutes: args.minutes,
             notes: args.notes,
-            reference: args.reference,
+            reference,
             doi,
             maxHeight: args.maxHeight,
           });
         } else if (args.kind === "section") {
-          md = sectionSlide(args.title, args.subtitle ?? "");
+          md = sectionSlide(
+            args.title,
+            args.subtitle ?? "",
+            pal.section,
+            args.notes,
+            args.notes.trim() ? args.minutes : undefined,
+          );
+        } else if (args.kind in PATTERNS) {
+          const kind = args.kind as PatternKind;
+          let spec: unknown = args.spec ?? {};
+          if (typeof spec === "string") {
+            try {
+              spec = JSON.parse(spec);
+            } catch (e) {
+              throw new Error(`${kind} spec is not valid JSON: ${e}`);
+            }
+          }
+          const parsed = PATTERNS[kind].schema.safeParse(spec);
+          if (!parsed.success) {
+            throw new Error(
+              `${kind} spec: ${
+                parsed.error.issues.map((i) =>
+                  `${i.path.join(".") || "(root)"}: ${i.message}`
+                ).join("; ")
+              }`,
+            );
+          }
+          md = patternSlide(kind, parsed.data, {
+            title: args.title,
+            minutes: args.minutes,
+            notes: args.notes,
+            citation: args.citation,
+            reference: args.reference,
+          }, pal);
         } else {
           md = statementSlide(args.title, args.minutes, args.notes);
         }
         const path = `${g.dir}/${args.file}`;
         const cur = await Deno.readTextFile(path).catch(() => "");
         // statements share one heading, so identify them by their sentence
-        const key = args.kind === "statement" ? args.title : md.split("\n")[0];
+        const key = args.kind === "statement"
+          ? args.title
+          : args.kind === "statement_image"
+          ? md.split("\n").find((l) => l.startsWith("<p ")) ?? md.split("\n")[0]
+          : md.split("\n")[0];
         if (hasLine(cur, key)) {
           throw new Error(
             `${args.file} already has "${key}" — edit that slide instead of adding it again`,
           );
         }
+        await Deno.mkdir(path.slice(0, path.lastIndexOf("/")), {
+          recursive: true,
+        });
         await Deno.writeTextFile(
           path,
           cur ? insertSlide(cur, md, args.after) : md,
         );
+        // a new section file is included from the main .qmd, so the deck,
+        // outline and the edit methods see it
+        let included = "";
+        const mainExists = await Deno.stat(`${g.dir}/${g.main}`).then(
+          () => true,
+          () => false,
+        );
+        if (
+          mainExists && args.file !== g.main &&
+          !outlineDeck(g.dir, g.main).files.includes(args.file)
+        ) {
+          const mainDir = g.main.includes("/")
+            ? g.main.slice(0, g.main.lastIndexOf("/") + 1)
+            : "";
+          const incl = args.file.startsWith(mainDir)
+            ? args.file.slice(mainDir.length)
+            : args.file;
+          const mainPath = `${g.dir}/${g.main}`;
+          const text = await Deno.readTextFile(mainPath);
+          await Deno.writeTextFile(
+            mainPath,
+            `${text.replace(/\s*$/, "")}\n\n{{< include ${incl} >}}\n`,
+          );
+          included = `; included ${incl} at the end of ${g.main}`;
+          ctx.logger.info("{f} was not part of the deck: {how}", {
+            f: args.file,
+            how: `appended {{< include ${incl} >}} to ${g.main}`,
+          });
+        }
         const h = await ctx.writeResource(
           "slide",
           `slide-${slug(args.title).slice(0, 60)}`,
@@ -1106,7 +1718,7 @@ export const model = {
           kind: "slide",
           text: `added ${args.kind} slide to ${args.file}${
             args.after ? ` after "${args.after}"` : ""
-          }`,
+          }${included}`,
           slide: args.title,
           ref: args.figure,
         });
@@ -1414,6 +2026,12 @@ export const model = {
         return { dataHandles: handles };
       },
     },
+    // slide_insert, slide_move, slide_delete, slide_replace_image,
+    // backup_list, restore (edit.ts)
+    ...editMethods((ctx, entry) => journal(ctx as DeckContext, entry)),
+    ...slideMapMethods,
+    // template_list, deck_init, template_apply, template_preview (templates.ts)
+    ...templateMethods((ctx, entry) => journal(ctx as DeckContext, entry)),
   },
 };
 

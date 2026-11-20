@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" width="900" height="520" font-family="Helvetica, Arial, sans-serif">
+  <rect width="900" height="520" fill="#ffffff"/>
+  <text x="20" y="34" font-size="28" font-weight="700">A</text>
+  <line x1="110" y1="440" x2="860" y2="440" stroke="#000" stroke-width="2"/>
+  <line x1="110" y1="60" x2="110" y2="440" stroke="#000" stroke-width="2"/>
+  <g font-size="20" text-anchor="end">
+    <text x="100" y="446">0</text><text x="100" y="351">25</text><text x="100" y="256">50</text><text x="100" y="161">75</text><text x="100" y="66">100</text>
+  </g>
+  <text x="40" y="250" font-size="22" transform="rotate(-90 40 250)" text-anchor="middle">Survival (%)</text>
+  <g fill="#444"><rect x="170" y="98" width="110" height="342"/><rect x="420" y="190" width="110" height="250"/><rect x="670" y="300" width="110" height="140"/></g>
+  <g font-size="22" text-anchor="middle"><text x="225" y="474">control</text><text x="475" y="474">low dose</text><text x="725" y="474">high dose</text></g>
+  <text x="485" y="510" font-size="20" text-anchor="middle">Sample figure drawn for the template preview</text>
+</svg>

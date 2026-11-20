@@ -1,0 +1,26 @@
+/*-- scss:defaults --*/
+// quarto-deck template "dark": dark slate background, light text, teal
+// accent; for evening talks and projectors in dim rooms. Inter.
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
+// Diagram text keeps a narrower face: SVG layouts are measured for it.
+$qd-font-diagram: "IBM Plex Sans", $qd-font-base, sans-serif;
+
+$qd-heading: #F1F5F9;
+$qd-statement: #F1F5F9;
+$qd-strong: $qd-accent;
+$qd-title-tick: true;
+$qd-logo-invert: always;
+
+/*-- scss:rules --*/
+// Content made for a light page (figures, hand-drawn SVG with dark text,
+// transparent PNG layers) sits on a light card, so it stays legible. Not on
+// slides that set their own dark background (reveal marks them
+// .has-dark-background), and not for diagrams slide_add drew with this
+// palette (data-bg="dark").
+.reveal section:not(.has-dark-background) img:not(.slide-logo),
+.reveal section:not(.has-dark-background) svg:not([data-bg="dark"]) {
+  background: #F8FAFC; border-radius: 10px;
+}
+.reveal .slides section .src { color: #CBD5E1; }
+.reveal pre, .reveal code { background: #1E293B; color: #E2E8F0; }

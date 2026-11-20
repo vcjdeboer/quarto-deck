@@ -1,0 +1,165 @@
+<!-- quarto-deck structural classes, shared by every template.
+     Colours and fonts are CSS variables (--qd-*) that the template's
+     theme/<template>.scss defines from _brand.yml. Do not put hex values
+     here: switch the look with template_apply, not by editing this file.
+     Loaded via YAML: include-in-header: theme/deck-base.html -->
+<style>
+/* source line under a figure */
+.reveal .src {
+  display: block; font-size: var(--qd-src-size, 0.45em); color: var(--qd-dim);
+  text-align: left; margin-top: 0.25em;
+}
+
+/* figures never push a slide past its height */
+.reveal .r-stretch { max-height: 520px; width: auto; display: block; margin: 0 auto; }
+.reveal img { background: transparent; border: none; box-shadow: none; }
+
+/* placeholder for a figure still to insert */
+.reveal .ph {
+  display: flex; align-items: center; justify-content: center;
+  height: 430px; margin: 0.4em auto; max-width: 1000px;
+  border: 3px dashed var(--qd-accent); border-radius: 10px;
+  background: color-mix(in srgb, var(--qd-accent) 5%, transparent);
+}
+.reveal .ph p { margin: 0; padding: 0 1.4em; font-size: 0.62em; color: var(--qd-heading); line-height: 1.45; }
+.reveal .ph strong { color: var(--qd-accent-ink); }
+
+/* learning outcomes: numbered, roomy, readable from the back */
+.reveal .lo, .reveal .lo ol, .reveal ol.lo { font-size: 0.88em; line-height: 1.4; margin-left: 0.5em; }
+.reveal .lo li, .reveal ol.lo li { margin-bottom: 0.5em; }
+.reveal .lo li strong, .reveal ol.lo li strong { color: var(--qd-accent-ink); }
+
+/* exam-style practice question */
+.reveal .exam { font-size: 0.62em; line-height: 1.4; }
+.reveal .exam ol { margin-left: 0.5em; }
+.reveal .exam li { margin-bottom: 0.3em; }
+.reveal .exam .stem { color: var(--qd-dim); margin-bottom: 0.5em; }
+
+/* CV / introduction slide */
+.reveal .side { font-size: 0.72em; line-height: 1.35; }
+.reveal .side li { margin-bottom: 0.22em; }
+.reveal .side ul { margin-top: 0.15em; }
+
+/* learning outcomes revisited: ticked list */
+.reveal .lo-done, .reveal .lo-done ol, .reveal ol.lo-done { font-size: 0.86em; line-height: 1.38; margin-left: 0.5em; list-style: none; }
+.reveal .lo-done li, .reveal ol.lo-done li { margin-bottom: 0.5em; text-indent: -1.5em; padding-left: 1.5em; }
+.reveal .lo-done li::before, .reveal ol.lo-done li::before {
+  content: "\2713\00a0\00a0"; color: var(--qd-accent); font-weight: 800;
+}
+.reveal .lo-done li strong, .reveal ol.lo-done li strong { color: var(--qd-accent-ink); }
+
+/* a statement slide that needs smaller type than the default */
+.reveal section.statement.sm p { font-size: 1.45em; line-height: 1.3; }
+
+/* in-lecture drawing activity */
+.reveal .task {
+  font-size: 0.66em; line-height: 1.45; color: var(--qd-heading);
+  max-width: 1080px; margin: 0 auto 0.35em;
+}
+.reveal .task strong { color: var(--qd-accent-ink); }
+/* .ask: a question slide, read from the back of the room */
+.reveal .task.ask { font-size: 1.1em; line-height: 1.5; max-width: 1140px; }
+.reveal .task.ask p { margin: 0.8em 0; }
+.reveal .canvas {
+  position: relative; height: 300px; max-width: 1080px; margin: 0 auto;
+  border: 3px dashed var(--qd-accent); border-radius: 10px;
+  background: color-mix(in srgb, var(--qd-accent) 4%, transparent);
+}
+.reveal .canvas .hint {
+  position: absolute; bottom: 10px; left: 0; right: 0;
+  text-align: center; font-size: var(--qd-small-size, 0.5em); color: var(--qd-dim);
+}
+.reveal .wordbank {
+  display: flex; gap: 0.5em; justify-content: center; flex-wrap: wrap;
+  position: absolute; top: 16px; left: 0; right: 0;
+}
+.reveal .wordbank span {
+  background: var(--qd-primary); color: var(--qd-on-primary); border-radius: 6px;
+  padding: 0.18em 0.6em; font-size: 0.52em; font-weight: 600;
+}
+
+/* inline SVG diagrams fill the slide body and stay crisp */
+.reveal svg.diagram { display: block; width: 100%; max-height: 520px; margin: 0 auto; }
+.reveal svg.diagram text { font-family: var(--qd-font-diagram, var(--qd-font-body)); }
+
+/* small credit, bottom right: a person and a year */
+.reveal .cred {
+  position: absolute; right: 36px; bottom: 26px;
+  font-size: 0.42em; color: var(--qd-dim); letter-spacing: 0.02em;
+}
+/* one worked example under a claim */
+.reveal .example {
+  font-size: 0.55em; line-height: 1.4; color: var(--qd-heading);
+  border-left: 5px solid var(--qd-accent); padding: 0.15em 0 0.15em 0.7em;
+  margin-top: 0.5em;
+}
+.reveal .example strong { color: var(--qd-accent-ink); }
+/* three short claims, large enough to read from the back */
+.reveal .claims p { font-size: 0.74em; line-height: 1.45; margin: 0.42em 0; color: var(--qd-heading); }
+.reveal .claims strong { color: var(--qd-accent-ink); }
+
+/* two-theory comparison table */
+.reveal .cmp table { width: 100%; border-collapse: collapse; font-size: 0.80em; margin: 0.1em 0; }
+.reveal .cmp th, .reveal .cmp td {
+  border: none; border-bottom: 2px solid var(--qd-rule);
+  padding: 0.5em 0.7em; vertical-align: top; text-align: left; line-height: 1.32;
+}
+.reveal .cmp thead th { background: var(--qd-primary); color: var(--qd-on-primary); font-weight: 700; border-bottom: none; }
+.reveal .cmp thead th:first-child { background: transparent; color: var(--qd-heading); }
+.reveal .cmp colgroup { display: none; }
+.reveal .cmp tbody td:first-child { font-weight: 700; color: var(--qd-heading); width: 20% !important; }
+.reveal .cmp tbody td:nth-child(2) { color: var(--qd-dim); width: 38% !important; }
+.reveal .cmp tbody td:nth-child(3) { color: var(--qd-heading); width: 42% !important; background: color-mix(in srgb, var(--qd-accent) 7%, transparent); }
+
+/* four-column variant: last column is the result and gets the accent wash */
+.reveal .cmp.four thead th:first-child { color: var(--qd-heading); background: transparent; }
+.reveal .cmp.four tbody td:first-child { width: 22% !important; }
+.reveal .cmp.four tbody td:nth-child(2) { width: 16% !important; color: var(--qd-accent-ink); font-weight: 700; background: none; }
+.reveal .cmp.four tbody td:nth-child(3) { width: 36% !important; color: var(--qd-dim); background: none; }
+.reveal .cmp.four tbody td:nth-child(4) { width: 26% !important; color: var(--qd-heading); font-weight: 700; background: color-mix(in srgb, var(--qd-accent) 7%, transparent); }
+
+/* .cmp.four.after: the SECOND data column is the result, so emphasise column 3, not 2 */
+.reveal .cmp.four.after tbody td:nth-child(2) { color: var(--qd-dim); font-weight: 400; }
+.reveal .cmp.four.after tbody td:nth-child(3) { color: var(--qd-accent-ink); font-weight: 700; }
+
+/* three uniform portrait tiles */
+.reveal img.portrait {
+  display: block; width: 100%; height: 360px; object-fit: cover;
+  object-position: center 22%; border-radius: 10px; margin: 0 0 0.5em 0;
+}
+.reveal .who { text-align: center; line-height: 1.3; }
+.reveal .who p { margin: 0; }
+.reveal .who .nm { font-size: 0.62em; font-weight: 700; color: var(--qd-heading); }
+.reveal .who .pos { font-size: 0.5em; color: var(--qd-accent-ink); font-weight: 700; }
+
+/* a tall figure that must fit under a two-line title */
+.reveal img.fig-tall { max-height: 470px; width: auto; display: block; margin: 0 auto; }
+
+/* a paper figure under a one-line title, as large as the slide allows */
+.reveal img.fig-xl { max-height: 555px; width: auto; display: block; margin: 0 auto; }
+
+/* credit line laid over a full-bleed photograph, bottom centre */
+.reveal .credit-photo {
+  position: absolute; left: 0; right: 0; bottom: 14px;
+  text-align: center; line-height: 1.3; margin: 0;
+}
+.reveal .credit-photo span {
+  display: inline-block; background: rgba(0, 0, 0, 0.55); color: #fff;
+  font-size: 0.4em; letter-spacing: 0.02em;
+  padding: 0.3em 0.8em; border-radius: 5px;
+}
+
+/* full-bleed figure slides: drop the logo and the footer so nothing sits on the figure */
+.reveal:has(section.bleed.present) .slide-logo,
+.reveal:has(section.bleed.present) .footer,
+.reveal:has(section.bleed.present) div.footer { display: none !important; }
+
+/* four figure panels in a grid */
+.reveal img.panel { max-height: 200px; width: auto; display: block; margin: 0 auto; }
+.reveal .plab { display: block; text-align: center; font-size: 0.38em; color: var(--qd-dim); margin: 0 0 0.12em; }
+
+/* full-height figure under a one-line title */
+.reveal img.fig-max { max-height: 600px; width: auto; display: block; margin: 0 auto; }
+
+.reveal img.legend { max-height: 215px; width: auto; display: block; margin: 2.4em auto 0; }
+</style>

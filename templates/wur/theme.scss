@@ -1,0 +1,11 @@
+/*-- scss:defaults --*/
+// quarto-deck template "wur": Wageningen University & Research look.
+// Navy + Wageningen green, logo bottom right, thin green bar along the top,
+// short green tick under every title. Headings Archivo, body IBM Plex Sans.
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
+$qd-top-bar: 6px;
+$qd-title-tick: true;
+$qd-section-text: $qd-bg;                   // off-white on navy dividers
+
+/*-- scss:rules --*/

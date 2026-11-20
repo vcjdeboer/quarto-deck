@@ -1,0 +1,36 @@
+// ---- quarto-deck shared defaults ---------------------------------------
+// Every value can be set by the template before this block (all !default).
+// The $qd-* colours above come from the deck's _brand.yml.
+$qd-heading: $qd-primary !default;          // h1/h2 colour
+$qd-statement: $qd-heading !default;        // statement-slide sentence
+$qd-dim: $qd-muted !default;                // captions, footer, .src
+$qd-strong: $qd-accent-ink !default;        // **bold** in body text
+$qd-section-text: $qd-on-section !default;  // text on section/.dark slides
+$qd-font-body: $qd-font-base, -apple-system, "Segoe UI", sans-serif !default;
+$qd-font-head: $qd-font-headings, $qd-font-body !default;
+$qd-font-diagram: $qd-font-body !default;   // text in svg.diagram
+$qd-top-bar: 0 !default;                    // height of the bar across the top (0 = none)
+$qd-title-tick: false !default;             // short accent bar under slide titles
+$qd-logo-height: 92px !default;
+$qd-logo-invert: dark-slides !default;      // dark-slides | always | never
+$qd-src-size: 0.45em !default;              // source line under a figure
+$qd-small-size: 0.5em !default;             // footer, credits, hints
+
+// Set outright (not !default): Quarto's _brand.yml layer would otherwise
+// win. A template changes these through the $qd-* variables.
+$body-bg: $qd-bg;
+$body-color: $qd-fg;
+$link-color: $qd-accent-ink;
+$link-color-hover: $qd-accent;
+$selection-bg: rgba($qd-accent, 0.22);
+$font-family-sans-serif: $qd-font-body;
+$presentation-heading-font: $qd-font-head;
+$presentation-heading-color: $qd-heading;
+
+$presentation-font-size-root: 34px !default;
+$presentation-line-height: 1.4 !default;
+$presentation-heading-font-weight: 700 !default;
+$presentation-h1-font-size: 2.0em !default;
+$presentation-h2-font-size: 1.35em !default;
+$presentation-h3-font-size: 1.05em !default;
+$code-block-font-size: 0.7em !default;

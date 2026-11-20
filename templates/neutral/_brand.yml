@@ -1,0 +1,20 @@
+# quarto-deck template "neutral": plain academic. White background,
+# near-black text, one blue accent, Source Sans Pro.
+meta:
+  name: neutral
+color:
+  palette:
+    blue: "#1D4E89"
+    green: "#2F7A3D"
+    red: "#B3261E"
+    grey: "#5F6B7A"
+    near-black: "#1F2328"
+    white: "#FFFFFF"
+  primary: blue
+  success: green
+  danger: red
+  foreground: near-black
+  background: white
+typography:
+  base: Source Sans Pro
+  headings: Source Sans Pro
